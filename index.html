@@ -632,17 +632,39 @@ const isPainted = p => typeof p === "string" && p.startsWith("https://image.poll
 function portraitURL(c){
   const w = worldById(c.world) || {};
   const who = c.pronouns === "he/him" ? "man" : c.pronouns === "she/her" ? "woman" : "person";
-  const look = (c.look || "").trim() || (c.avatar ? describeAvatar(c.avatar) : "");
-  const p = `Head and shoulders character portrait of a ${who}: ${look}. ${c.cls?.name ? c.cls.name + (c.cls.blurb ? ", " + c.cls.blurb : "") + "." : ""} Setting: ${w.genre || "fantasy"} world${w.name ? " of " + w.name : ""}. Cinematic dramatic lighting, moody colored background, detailed realistic digital painting, looking at the viewer, no text.`;
+  const look = (c.look || "").trim().replace(/[.\s]+$/, "") || (c.avatar ? describeAvatar(c.avatar) : "an adventurer");
+  const p = `Photorealistic cinematic portrait photograph of a ${who}: ${look}. ${c.cls?.name ? `They are a ${c.cls.name}${c.cls.blurb ? " (" + c.cls.blurb + ")" : ""}.` : ""} Setting: ${w.genre || "fantasy"} world. Head and shoulders, looking at the camera. Dramatic colored rim lighting, dark moody background, shot on 85mm lens, shallow depth of field, ultra detailed realistic skin texture, film still, 8k.`;
   const seed = (hashStr(c.id + ":" + (c.paintSeed || 0)) % 999983) + 1;
-  return "https://image.pollinations.ai/prompt/" + encodeURIComponent(p.slice(0, 700)) + `?width=512&height=704&seed=${seed}&nologo=true`;
+  return "https://image.pollinations.ai/prompt/" + encodeURIComponent(p.slice(0, 800)) + `?width=512&height=704&seed=${seed}&nologo=true&model=flux`;
 }
-function preloadImg(u, ms){ return new Promise(res => { const i = new Image(); const t = setTimeout(() => res(false), ms || 30000); i.onload = () => { clearTimeout(t); res(true); }; i.onerror = () => { clearTimeout(t); res(false); }; i.src = u; }); }
+/* fetch the painting, crop off the watermark strip, keep it as a small image inside the character */
+async function paintPortrait(c, onWait){
+  const u = portraitURL(c);
+  for (let tries = 0; tries < 4; tries++) {
+    let r = null;
+    try { const ac = new AbortController(); const t = setTimeout(() => ac.abort(), 60000); r = await fetch(u, { signal: ac.signal }); clearTimeout(t); } catch {}
+    if (r && r.ok && (r.headers.get("content-type") || "").startsWith("image/")) {
+      const blob = await r.blob();
+      return await new Promise((res, rej) => {
+        const url = URL.createObjectURL(blob), img = new Image();
+        img.onload = () => { const W = 400, H = 500, cv = document.createElement("canvas"); cv.width = W; cv.height = H; const sh = Math.min(img.height, img.width * H / W); cv.getContext("2d").drawImage(img, 0, 0, img.width, sh, 0, 0, W, H); URL.revokeObjectURL(url); res(cv.toDataURL("image/jpeg", 0.82)); };
+        img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("bad image")); }; img.src = url;
+      });
+    }
+    if (tries < 3) { if (onWait) onWait(); await new Promise(z => setTimeout(z, 46000)); }
+  }
+  throw new Error("painter busy");
+}
+let paintBusy = false;
 async function paintMissing(){
-  if (!PAINT) return; let n = 0;
-  for (const c of chars) if (!c.portrait && !c.noPaint) { c.portrait = portraitURL(c); n++; await putDoc(c, "c"); }
-  if (n) rerender();
+  if (!PAINT || paintBusy) return; paintBusy = true;
+  try {
+    for (const c of chars) if ((!c.portrait && !c.noPaint) || isPainted(c.portrait)) {
+      try { c.portrait = await paintPortrait(c); c.painted = true; await putDoc(c, "c"); rerender(); } catch { if (isPainted(c.portrait)) { c.portrait = null; } }
+    }
+  } finally { paintBusy = false; }
 }
+
 function rerender(){ const v = curView(); if (v === "home") renderHome(); if (v === "worlds") renderWorlds(); if (v === "characters") renderChars(); updateContinue(); }
 
 /* ---------- art ---------- */
@@ -972,7 +994,7 @@ function editChar(c, after){
     if (PAINT) {
       const pv = el("div","paintprev"); if (c.portrait) pv.style.backgroundImage = `url("${c.portrait}")`;
       const pb = el("button","btn small","Paint a new portrait"); const ps = el("span","status");
-      pb.addEventListener("click", async () => { pb.disabled = true; ps.textContent = "Painting..."; const tmp = { ...c, look: lk.value.trim() || c.look, paintSeed: (c.paintSeed || 0) + 1 }; const u = portraitURL(tmp); const ok = await preloadImg(u); if (ok) { c.paintSeed = tmp.paintSeed; c.portrait = u; c.noPaint = false; pv.style.backgroundImage = `url("${u}")`; ps.textContent = "Like it? Save changes to keep it."; repaint = true; } else ps.textContent = "The painter is busy. Try again in a moment."; pb.disabled = false; });
+      pb.addEventListener("click", async () => { pb.disabled = true; ps.textContent = "Painting..."; const tmp = { ...c, look: lk.value.trim() || c.look, paintSeed: (c.paintSeed || 0) + 1 }; try { const u = await paintPortrait(tmp, () => ps.textContent = "The free painter allows one picture every 45 seconds. Waiting..."); c.paintSeed = tmp.paintSeed; c.portrait = u; c.painted = true; c.noPaint = false; pv.style.backgroundImage = `url("${u}")`; ps.textContent = "Like it? Save changes to keep it."; repaint = true; } catch { ps.textContent = "The painter is busy. Try again in a minute."; } pb.disabled = false; });
       const r = el("div","portraitIn"); r.append(pv, pb, ps); body.append(fieldOf("Painted portrait (made from their description)", r));
     }
     body.append(fieldOf("Name", nm), fieldOf("Other appearance details", lk), fieldOf("Where they come from", og), fieldOf("Backstory", bs), fieldOf("Portrait (an image you own)", pf));
@@ -1106,7 +1128,7 @@ async function finishChar(btn){
   const dr = WZ.draft; const base = rollStats();
   const stats = {}; for (const k of STATS) stats[k] = base[k] + (dr.cls.bonus?.[k] || 0);
   const c = { id:dr.id, world:dr.world, name:dr.name, pronouns:dr.pronouns, look:dr.look, origin:dr.origin, cls:dr.cls, stats, story:null, portrait:dr.portrait, avatar:dr.avatar, hp:Math.max(1, (dr.cls.hitDie || 8) + mod(stats.CON)), updated:Date.now() };
-  if (PAINT && !c.portrait && !dr.noPaint) { c.portrait = portraitURL(c); if (btn) btn.textContent = `Painting ${c.name}'s portrait...`; await preloadImg(c.portrait, 30000); }
+  if (PAINT && !c.portrait && !dr.noPaint) { if (btn) btn.textContent = `Painting ${c.name}'s portrait...`; try { c.portrait = await paintPortrait(c, () => { if (btn) btn.textContent = "The free painter is busy, waiting a moment..."; }); c.painted = true; } catch { c.portrait = null; } }
   if (dr.noPaint) c.noPaint = true;
   await saveChar(c); forgeStory(c, WZ.world);
   return c;
