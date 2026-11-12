@@ -688,9 +688,12 @@ async function paintMissing(){
   if (!PAINT || paintBusy) return; paintBusy = true;
   try {
     for (const c of chars) if ((!c.portrait && !c.noPaint) || isPainted(c.portrait) || (c.painted && c.paintV !== 2)) {
-      try { c.portrait = await paintPortrait(c); c.painted = true; c.paintV = 2; await putDoc(c, "c"); rerender(); } catch { if (isPainted(c.portrait)) { c.portrait = null; } }
+      try { c.portrait = await paintPortrait(c); c.painted = true; c.paintV = 2; await putDoc(c, "c"); rerender();
+        if (typeof T !== "undefined" && T.me && T.me.id === c.id) { T.me.portrait = c.portrait; try { renderSide(); syncMe(); } catch {} }
+        toast(`${c.name}'s portrait is ready.`); } catch { if (isPainted(c.portrait)) { c.portrait = null; } }
     }
   } finally { paintBusy = false; }
+  if (chars.some(c => !c.portrait && !c.noPaint)) setTimeout(paintMissing, 60000);
 }
 
 function rerender(){ const v = curView(); if (v === "home") renderHome(); if (v === "worlds") renderWorlds(); if (v === "characters") renderChars(); updateContinue(); }
@@ -1156,7 +1159,7 @@ async function finishChar(btn){
   const dr = WZ.draft; const base = rollStats();
   const stats = {}; for (const k of STATS) stats[k] = base[k] + (dr.cls.bonus?.[k] || 0);
   const c = { id:dr.id, world:dr.world, name:dr.name, pronouns:dr.pronouns, look:dr.look, origin:dr.origin, cls:dr.cls, stats, story:null, portrait:dr.portrait, avatar:dr.avatar, hp:Math.max(1, (dr.cls.hitDie || 8) + mod(stats.CON)), updated:Date.now() };
-  if (PAINT && !c.portrait && !dr.noPaint) { if (btn) btn.textContent = `Painting ${c.name}'s portrait...`; try { c.portrait = await paintPortrait(c, () => { if (btn) btn.textContent = "The free painter is busy, waiting a moment..."; }); c.painted = true; c.paintV = 2; } catch { c.portrait = null; } }
+  if (PAINT && !c.portrait && !dr.noPaint) { if (btn) btn.textContent = `Painting ${c.name}'s portrait...`; try { c.portrait = await paintPortrait(c, () => { if (btn) btn.textContent = "The free painter is busy, waiting a moment..."; }); c.painted = true; c.paintV = 2; } catch { c.portrait = null; setTimeout(() => { toast("Still painting the portrait; it will appear when it's ready."); paintMissing(); }, 3000); } }
   if (dr.noPaint) c.noPaint = true;
   await saveChar(c); forgeStory(c, WZ.world);
   return c;
