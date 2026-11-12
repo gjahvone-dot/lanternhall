@@ -629,16 +629,44 @@ const worldById = id => allWorlds().find(w => w.id === id);
 /* painted portraits: a free image model paints the character from their description (website only; the Claude page keeps the drawing) */
 const PAINT = true;
 const isPainted = p => typeof p === "string" && p.startsWith("https://image.pollinations.ai/");
+/* art style follows the player's words; real-life photo is the default */
+const ART_STYLES = {
+  photo:   { re:null, pre:"Photorealistic cinematic portrait photograph of a", post:"Head and shoulders, looking at the camera. Dramatic colored rim lighting, dark moody background, shot on 85mm lens, shallow depth of field, ultra detailed realistic skin texture, film still, 8k." },
+  anime:   { re:/\b(anime|manga|chibi|shonen|shounen|shojo|waifu|cel[- ]?shad\w*|studio ghibli|ghibli)\b/i, pre:"Anime style character portrait illustration of a", post:"Head and shoulders. Clean line art, cel shading, vibrant colors, expressive anime eyes, detailed anime key visual, dramatic background." },
+  pixel:   { re:/\b(pixel(ated)?|pixel[- ]?art|8[- ]?bit|16[- ]?bit|sprite|retro game)\b/i, pre:"Pixel art character portrait of a", post:"Head and shoulders, 16-bit retro video game style, crisp pixels, limited palette, simple background." },
+  comic:   { re:/\b(comic|comics|comic[- ]?book|graphic novel|marvel style|dc style|inked|halftone)\b/i, pre:"Comic book style character portrait of a", post:"Head and shoulders, bold inked lines, halftone shading, dynamic comic panel lighting, vivid colors." },
+  render3d:{ re:/\b(pixar|disney|3d|3-d|cgi|clay|claymation|animated movie|toy)\b/i, pre:"3D animated movie style character portrait of a", post:"Head and shoulders, stylized proportions, soft cinematic lighting, high quality 3D render, expressive face." },
+  cartoon: { re:/\b(cartoon\w*|toon|looney|simpsons|disney style|flat colou?rs?|kids show|caricature|doodle|stick figure)\b/i, pre:"Cartoon style character portrait of a", post:"Head and shoulders, bold outlines, flat bright colors, playful stylized proportions, animated series style, simple background." },
+  paint:   { re:/\b(oil painting|painted|painterly|watercolou?r|brush ?strokes?|renaissance|fantasy art|concept art|illustrat\w*|drawn|sketch\w*)\b/i, pre:"Fantasy painted character portrait of a", post:"Head and shoulders, rich oil painting, visible brush strokes, dramatic lighting, detailed fantasy concept art." },
+};
+function artStyle(){ return "photo"; } /* every portrait is realistic */
 function portraitURL(c){
   const w = worldById(c.world) || {};
   const who = c.pronouns === "he/him" ? "man" : c.pronouns === "she/her" ? "woman" : "person";
-  const look = (c.look || "").trim().replace(/[.\s]+$/, "") || (c.avatar ? describeAvatar(c.avatar) : "an adventurer");
-  const p = `Photorealistic cinematic portrait photograph of a ${who}: ${look}. ${c.cls?.name ? `They are a ${c.cls.name}${c.cls.blurb ? " (" + c.cls.blurb + ")" : ""}.` : ""} Setting: ${w.genre || "fantasy"} world. Head and shoulders, looking at the camera. Dramatic colored rim lighting, dark moody background, shot on 85mm lens, shallow depth of field, ultra detailed realistic skin texture, film still, 8k.`;
+  const raw = (c.look || "").trim();
+  const st = ART_STYLES.photo;
+  const look = (c.lookPrompt || raw).replace(/[.\s]+$/, "") || (c.avatar ? describeAvatar(c.avatar) : "an adventurer");
+  const p = `${st.pre} ${who}. Exact appearance: ${look}. ${c.cls?.name ? `Role: ${c.cls.name}.` : ""} Setting: ${w.genre || "fantasy"} world. ${st.post}`;
   const seed = (hashStr(c.id + ":" + (c.paintSeed || 0)) % 999983) + 1;
-  return "https://image.pollinations.ai/prompt/" + encodeURIComponent(p.slice(0, 800)) + `?width=512&height=704&seed=${seed}&nologo=true&model=flux`;
+  return "https://image.pollinations.ai/prompt/" + encodeURIComponent(p.slice(0, 900)) + `?width=512&height=704&seed=${seed}&nologo=true&model=flux`;
+}
+/* the Forge turns the player's description into a clear picture brief (keeps every detail, picks the art style) */
+async function briefLook(c){
+  const raw = (c.look || "").trim(); if (!raw) return;
+  if (c.lookPrompt && c.lookFrom === raw) return;
+  c.artStyle = artStyle(raw); c.lookPrompt = null; c.lookFrom = raw;
+  try {
+    await ready; if (!SAMPLE) return;
+    const r = await SAMPLE.json(`A player described how their tabletop RPG character looks. Turn it into a clear visual brief for an image generator.
+Description: """${raw.slice(0, 400)}"""
+Rules: keep EVERY detail they gave (gender, age, skin tone, hair style and color, eye color, facial hair, scars, marks, tattoos, clothes, colors, accessories, glow effects, body type, age). Put face and hair details first. Do not invent big new features. Write plain visual words, comma separated, under 70 words. It will be painted as a realistic photograph, so describe it as a real person (turn cartoon or anime words into real-life equivalents, e.g. "spiky green hair" stays, but no "cartoon").
+Reply with only JSON: {"brief": "..."}`, { modelTier:"quick", cache:false, seat:"forge" });
+    if (r && typeof r.brief === "string" && r.brief.trim()) c.lookPrompt = r.brief.trim().slice(0, 500);
+  } catch {}
 }
 /* fetch the painting, crop off the watermark strip, keep it as a small image inside the character */
 async function paintPortrait(c, onWait){
+  await briefLook(c);
   const u = portraitURL(c);
   for (let tries = 0; tries < 4; tries++) {
     let r = null;
@@ -659,8 +687,8 @@ let paintBusy = false;
 async function paintMissing(){
   if (!PAINT || paintBusy) return; paintBusy = true;
   try {
-    for (const c of chars) if ((!c.portrait && !c.noPaint) || isPainted(c.portrait)) {
-      try { c.portrait = await paintPortrait(c); c.painted = true; await putDoc(c, "c"); rerender(); } catch { if (isPainted(c.portrait)) { c.portrait = null; } }
+    for (const c of chars) if ((!c.portrait && !c.noPaint) || isPainted(c.portrait) || (c.painted && c.paintV !== 2)) {
+      try { c.portrait = await paintPortrait(c); c.painted = true; c.paintV = 2; await putDoc(c, "c"); rerender(); } catch { if (isPainted(c.portrait)) { c.portrait = null; } }
     }
   } finally { paintBusy = false; }
 }
@@ -994,7 +1022,7 @@ function editChar(c, after){
     if (PAINT) {
       const pv = el("div","paintprev"); if (c.portrait) pv.style.backgroundImage = `url("${c.portrait}")`;
       const pb = el("button","btn small","Paint a new portrait"); const ps = el("span","status");
-      pb.addEventListener("click", async () => { pb.disabled = true; ps.textContent = "Painting..."; const tmp = { ...c, look: lk.value.trim() || c.look, paintSeed: (c.paintSeed || 0) + 1 }; try { const u = await paintPortrait(tmp, () => ps.textContent = "The free painter allows one picture every 45 seconds. Waiting..."); c.paintSeed = tmp.paintSeed; c.portrait = u; c.painted = true; c.noPaint = false; pv.style.backgroundImage = `url("${u}")`; ps.textContent = "Like it? Save changes to keep it."; repaint = true; } catch { ps.textContent = "The painter is busy. Try again in a minute."; } pb.disabled = false; });
+      pb.addEventListener("click", async () => { pb.disabled = true; ps.textContent = "Painting..."; const tmp = { ...c, look: lk.value.trim() || c.look, paintSeed: (c.paintSeed || 0) + 1 }; try { const u = await paintPortrait(tmp, () => ps.textContent = "The free painter allows one picture every 45 seconds. Waiting..."); c.paintSeed = tmp.paintSeed; c.portrait = u; c.painted = true; c.paintV = 2; c.lookPrompt = tmp.lookPrompt; c.lookFrom = tmp.lookFrom; c.artStyle = tmp.artStyle; c.noPaint = false; pv.style.backgroundImage = `url("${u}")`; ps.textContent = "Like it? Save changes to keep it."; repaint = true; } catch { ps.textContent = "The painter is busy. Try again in a minute."; } pb.disabled = false; });
       const r = el("div","portraitIn"); r.append(pv, pb, ps); body.append(fieldOf("Painted portrait (made from their description)", r));
     }
     body.append(fieldOf("Name", nm), fieldOf("Other appearance details", lk), fieldOf("Where they come from", og), fieldOf("Backstory", bs), fieldOf("Portrait (an image you own)", pf));
@@ -1064,7 +1092,7 @@ function renderWizard(){
     const box = wizardFrame(`Describe ${nm()}.`, "Face, body, clothes, anything that stands out. The AI draws them from this, and the Game Master reads it too.");
     if (!WZ.draft.avatar) WZ.draft.avatar = randomAvatar();
     const row = el("div","row"); ["he/him","she/her","they/them"].forEach(p => { const c = el("button","chip",p); c.setAttribute("aria-pressed", String(WZ.draft.pronouns === p)); c.addEventListener("click", () => { WZ.draft.pronouns = p; row.querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", String(x === c))); }); row.append(c); });
-    const t = el("textarea"); t.id = "wzLook"; t.maxLength = 400; t.placeholder = "Tall and wiry, dark skin, long silver braids, a scar over one eye, a red coat that always smells of smoke..."; t.value = WZ.draft.look;
+    const t = el("textarea"); t.id = "wzLook"; t.maxLength = 400; t.placeholder = "Tall and wiry, dark skin, long silver braids, a scar over one eye, a red coat..."; t.value = WZ.draft.look;
     const lr = el("div","lrow"); const cnt = el("span","count"); lr.append(el("span","label","Appearance"), cnt);
     const upd = () => cnt.textContent = `${t.value.length}/400`; upd(); t.addEventListener("input", upd);
     const fine = el("details","fine"); fine.dataset.nofacegen = ""; fine.append(el("summary",null, PAINT ? "Prefer a cartoon drawing, or your own picture?" : "Fine-tune the drawing, or upload a picture"));
@@ -1128,7 +1156,7 @@ async function finishChar(btn){
   const dr = WZ.draft; const base = rollStats();
   const stats = {}; for (const k of STATS) stats[k] = base[k] + (dr.cls.bonus?.[k] || 0);
   const c = { id:dr.id, world:dr.world, name:dr.name, pronouns:dr.pronouns, look:dr.look, origin:dr.origin, cls:dr.cls, stats, story:null, portrait:dr.portrait, avatar:dr.avatar, hp:Math.max(1, (dr.cls.hitDie || 8) + mod(stats.CON)), updated:Date.now() };
-  if (PAINT && !c.portrait && !dr.noPaint) { if (btn) btn.textContent = `Painting ${c.name}'s portrait...`; try { c.portrait = await paintPortrait(c, () => { if (btn) btn.textContent = "The free painter is busy, waiting a moment..."; }); c.painted = true; } catch { c.portrait = null; } }
+  if (PAINT && !c.portrait && !dr.noPaint) { if (btn) btn.textContent = `Painting ${c.name}'s portrait...`; try { c.portrait = await paintPortrait(c, () => { if (btn) btn.textContent = "The free painter is busy, waiting a moment..."; }); c.painted = true; c.paintV = 2; } catch { c.portrait = null; } }
   if (dr.noPaint) c.noPaint = true;
   await saveChar(c); forgeStory(c, WZ.world);
   return c;
