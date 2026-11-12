@@ -1,3 +1,4 @@
+document.addEventListener("DOMContentLoaded", () => { const s = document.createElement("script"); s.src = "/face-ai.js"; document.body.append(s); });
 // Lanternhall web adapter: gives the game the same AI, multiplayer and voice
 // functions it had inside Claude, backed by this site's own server, Supabase and the browser.
 (() => {
