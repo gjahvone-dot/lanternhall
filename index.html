@@ -220,6 +220,17 @@ footer{padding-block:28px;color:var(--muted);font-size:14px;border-top:1px solid
 .sw{width:30px;height:30px;border-radius:50%;border:2px solid #ffffff22;cursor:pointer;padding:0}
 .sw[aria-pressed="true"]{border-color:var(--gold);box-shadow:0 0 0 2px var(--bg) inset}
 .wizard.wide{max-width:820px}
+.lrow{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:-8px}
+.count{font:500 12px var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+#wzLook,#wzOrigin{min-height:130px}
+details.fine{border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+details.fine>summary{cursor:pointer;padding:12px 14px;color:var(--muted);font-size:14px;list-style:none;display:flex;justify-content:space-between;gap:8px}
+details.fine>summary::after{content:"+";font:600 16px var(--mono)}
+details.fine[open]>summary::after{content:"\2212"}
+details.fine>div{padding:0 14px 14px;display:flex;flex-direction:column;gap:14px}
+.fine .creator{grid-template-columns:1fr}
+.fine .cprev{max-width:200px;margin:0 auto;width:100%}
+.btn.ghost{background:none;border-color:transparent;color:var(--muted)}
 .pimg{position:absolute;inset:0;background:center/cover no-repeat}
 .pimg svg,.pic svg,.wp svg{position:absolute;inset:0;width:100%;height:100%}
 .face{width:44px;height:44px;border-radius:50%;overflow:hidden;flex:none;border:1px solid #ffffff22}
@@ -478,7 +489,7 @@ footer{padding-block:28px;color:var(--muted);font-size:14px;border-top:1px solid
       <a href="#guide" data-g="g-start">Getting started</a><a href="#guide" data-g="g-turn">Taking a turn</a><a href="#guide" data-g="g-dice">Dice and checks</a><a href="#guide" data-g="g-char">Your character</a><a href="#guide" data-g="g-quests">Quests</a><a href="#guide" data-g="g-people">People and dialogue</a><a href="#guide" data-g="g-council">The AI council</a><a href="#guide" data-g="g-multi">Playing with friends</a><a href="#guide" data-g="g-tips">Tips</a>
     </nav>
     <div class="gbody">
-      <section id="g-start"><h3>Getting started</h3><p>Pick a world on the <a href="#worlds">Worlds</a> page and tap <b>Make a character here</b>. You'll choose a name, shape their face and body, say where they come from, pick one of that world's classes, roll ability scores and add a backstory. Then choose Solo, Open a table, or Join a friend's table.</p></section>
+      <section id="g-start"><h3>Getting started</h3><p>Pick a world on the <a href="#worlds">Worlds</a> page and tap <b>Make a character here</b>. You'll choose a name, shape their face and body, say where they come from, describe how they look (the AI draws them from your words), say where they come from, and pick one of that world's classes. The Forge rolls their abilities and writes a backstory while you play. Tap <b>Begin story</b> to play solo, or <b>Play with friends instead</b> to open or join a table.</p></section>
       <section id="g-turn"><h3>Taking a turn</h3><p>Type what your character does in the box under the story and press <b>Act</b>. Write actions in plain words and speech in quotes:</p><p class="ex">I lean on the bar and slide a coin over. "Who runs the night market?"</p><p>The Game Master answers with what happens next. Suggested actions appear as buttons, but you can always do something else. The Game Master never decides what your character feels or says.</p></section>
       <section id="g-dice"><h3>Dice and checks</h3><p>When an action could fail, the Game Master asks for a check, such as <b>Dexterity, DC 14</b>. Press the roll button: you roll a d20 and add your modifier. Meet or beat the DC to succeed. A natural 20 always succeeds spectacularly; a natural 1 always goes wrong.</p><p>You can also roll any skill from the <b>Skills</b> tab. Class skills (marked with a dot) add a proficiency bonus of +2, rising as you level.</p></section>
       <section id="g-char"><h3>Your character</h3><ul><li><b>HP</b> drops when you're hurt and recovers when you rest or heal. At 0 you fall unconscious.</li><li><b>XP</b> comes from overcoming challenges, clever ideas, great roleplay and finished quests. Every level raises your max HP.</li><li><b>Inventory</b> holds gold and gear the Game Master hands out. Equip weapons and armor, or use consumables.</li><li><b>Abilities</b> come from your class. Tap one in the Skills tab to use it.</li></ul></section>
@@ -959,7 +970,7 @@ $("#joinGo").addEventListener("click", async () => {
 
 /* ---------- create wizard ---------- */
 let WZ = {};
-const STEPS = ["pick","name","look","origin","class","stats","story","mode"];
+const STEPS = ["pick","name","look","origin","class"];
 const worldClassCache = {};
 function beginCreate(w){ WZ = { world:w, step:"pick", draft:null, classes:null, openCls:null }; go("create"); }
 function newDraft(){ WZ.draft = { id:rid(), world:WZ.world.id, name:"", pronouns:"they/them", look:"", origin:"", cls:null, base:null, story:null, portrait:null, avatar:randomAvatar() }; }
@@ -967,7 +978,7 @@ function wizardFrame(title, sub){
   const box = $("#wizard"); box.textContent = "";
   const top = el("div","wtop"); const back = el("button","back","←"); back.setAttribute("aria-label","Back");
   back.addEventListener("click", () => { const i = STEPS.indexOf(WZ.step); if (WZ.step === "mode") { if (WZ.fromChars) go("characters"); else { WZ.step = "pick"; renderWizard(); } return; } if (i <= 0) { go("worlds"); return; } WZ.step = STEPS[i - 1]; renderWizard(); });
-  const pr = el("div","prog"); const fill = el("b"); fill.style.width = Math.round(100 * (STEPS.indexOf(WZ.step) + 1) / STEPS.length) + "%"; pr.append(fill);
+  const pr = el("div","prog"); const fill = el("b"); fill.style.width = (WZ.step === "mode" ? 100 : Math.round(100 * (STEPS.indexOf(WZ.step) + 1) / STEPS.length)) + "%"; pr.append(fill);
   top.append(back, pr); box.append(top);
   const wc = el("div","worldchip"); const sw = el("i"); sw.style.setProperty("--art", artFor(WZ.world)); wc.append(sw, el("span",null,WZ.world.name)); const ch = el("a",null,"Change world"); ch.href = "#worlds"; wc.append(ch); box.append(wc);
   box.append(el("h2",null,title)); if (sub) box.append(el("p","sub",sub));
@@ -978,10 +989,10 @@ const nm = () => WZ.draft?.name || "your character";
 function renderWizard(){
   if (!WZ.world) return;
   const s = WZ.step;
-  $("#wizard").classList.toggle("wide", s === "look");
+  $("#wizard").classList.remove("wide");
   if (s !== "pick" && s !== "mode" && !WZ.draft) newDraft();
   if (s === "pick") {
-    const box = wizardFrame("Choose your character", "Make someone new for this world, or bring a character you already have.");
+    const box = wizardFrame("Choose Your Character", "Make someone new for this world, or bring a character you already have.");
     const nb = el("button","newchar"); nb.append(el("span","plus","+"), el("span",null,"Create a new character")); nb.addEventListener("click", () => { newDraft(); WZ.step = "name"; renderWizard(); });
     box.append(nb);
     const here = chars.filter(c => c.world === WZ.world.id), other = chars.filter(c => c.world !== WZ.world.id);
@@ -996,28 +1007,42 @@ function renderWizard(){
   if (s === "name") {
     const box = wizardFrame("What is your character's name?", "This is how the story will know them.");
     const i = el("input"); i.id = "wzName"; i.maxLength = 40; i.placeholder = "Type a name"; i.value = WZ.draft.name;
-    const n = nextBtn("Continue", () => { WZ.draft.name = i.value.trim(); WZ.step = "look"; renderWizard(); }, !i.value.trim());
+    const n = nextBtn("Continue →", () => { WZ.draft.name = i.value.trim(); WZ.step = "look"; renderWizard(); }, !i.value.trim());
     i.addEventListener("input", () => n.disabled = !i.value.trim()); i.addEventListener("keydown", e => { if (e.key === "Enter" && i.value.trim()) n.click(); });
     box.append(i, n); i.focus(); return;
   }
   if (s === "look") {
-    const box = wizardFrame(`Create ${nm()}'s look.`, "Shape their face and body. The Game Master sees this description too.");
+    const box = wizardFrame(`Describe ${nm()}.`, "Face, body, clothes, anything that stands out. The AI draws them from this, and the Game Master reads it too.");
     if (!WZ.draft.avatar) WZ.draft.avatar = randomAvatar();
-    const cr = el("div"); buildCreator(cr, WZ.draft.avatar);
     const row = el("div","row"); ["he/him","she/her","they/them"].forEach(p => { const c = el("button","chip",p); c.setAttribute("aria-pressed", String(WZ.draft.pronouns === p)); c.addEventListener("click", () => { WZ.draft.pronouns = p; row.querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", String(x === c))); }); row.append(c); });
-    const t = el("textarea"); t.id = "wzLook"; t.maxLength = 400; t.style.minHeight = "70px"; t.placeholder = "A long red coat, a cracked pocket watch, always smells of smoke..."; t.value = WZ.draft.look;
+    const t = el("textarea"); t.id = "wzLook"; t.maxLength = 400; t.placeholder = "Tall and wiry, dark skin, long silver braids, a scar over one eye, a red coat that always smells of smoke..."; t.value = WZ.draft.look;
+    const lr = el("div","lrow"); const cnt = el("span","count"); lr.append(el("span","label","Appearance"), cnt);
+    const upd = () => cnt.textContent = `${t.value.length}/400`; upd(); t.addEventListener("input", upd);
+    const fine = el("details","fine"); fine.dataset.nofacegen = ""; fine.append(el("summary",null,"Fine-tune the drawing, or upload a picture"));
+    const fin = el("div"); const cr = el("div"); buildCreator(cr, WZ.draft.avatar);
     const pin = el("div","portraitIn"); const img = el("img"); img.alt = ""; img.hidden = !WZ.draft.portrait; if (WZ.draft.portrait) img.src = WZ.draft.portrait;
     const f = el("input"); f.type = "file"; f.accept = "image/*"; f.id = "wzPic"; f.style.maxWidth = "260px";
     const clr = el("button","btn small","Use the drawing instead"); clr.hidden = !WZ.draft.portrait; clr.addEventListener("click", () => { WZ.draft.portrait = null; img.hidden = true; clr.hidden = true; });
     f.addEventListener("change", async () => { if (!f.files[0]) return; try { WZ.draft.portrait = await shrinkImage(f.files[0]); img.src = WZ.draft.portrait; img.hidden = false; clr.hidden = false; } catch { toast("That image couldn't be read."); } });
     pin.append(img, f, clr);
-    box.append(cr, el("p","label","Pronouns"), row, fieldOf("Other details (optional)", t), fieldOf("Or upload your own picture (an image you own)", pin), nextBtn("Continue", () => { WZ.draft.look = t.value.trim(); WZ.step = "origin"; renderWizard(); }));
+    const draw = el("button","btn small","Redraw from my description"); const dst = el("span","status");
+    const doDraw = async () => { const d = t.value.trim(); if (!d || !window.lhFace) return false; try { await window.lhFace.build(cr, d); WZ.draft.lookBuilt = d; return true; } catch (e) { dst.textContent = errText(e); return false; } };
+    draw.addEventListener("click", async () => { draw.disabled = true; dst.textContent = "Drawing..."; if (await doDraw()) dst.textContent = "Done. Tweak anything below."; draw.disabled = false; });
+    const dr = el("div","row"); dr.append(draw, dst);
+    fin.append(dr, cr, fieldOf("Your own picture (an image you own)", pin)); fine.append(fin);
+    const n = nextBtn("Continue →", async () => {
+      WZ.draft.look = t.value.trim();
+      if (WZ.draft.look && WZ.draft.look !== WZ.draft.lookBuilt && !WZ.draft.portrait && window.lhFace) { n.disabled = true; n.textContent = `Drawing ${nm()}...`; await doDraw(); }
+      WZ.step = "origin"; renderWizard();
+    });
+    box.append(el("p","label","Pronouns"), row, lr, t, n, fine); t.focus();
     return;
   }
   if (s === "origin") {
     const box = wizardFrame(`Where does ${nm()} come from?`, `A place, a people, a past, somewhere in ${WZ.world.name}.`);
     const t = el("textarea"); t.id = "wzOrigin"; t.maxLength = 400; t.placeholder = "Raised by smugglers on the outer docks; never met my mother..."; t.value = WZ.draft.origin;
-    box.append(t, nextBtn("Continue", () => { WZ.draft.origin = t.value.trim(); WZ.step = "class"; renderWizard(); })); t.focus(); return;
+    const lr = el("div","lrow"); const cnt = el("span","count"); lr.append(el("span","label","Origin"), cnt); const upd = () => cnt.textContent = `${t.value.length}/400`; upd(); t.addEventListener("input", upd);
+    box.append(lr, t, nextBtn("Continue →", () => { WZ.draft.origin = t.value.trim(); WZ.step = "class"; renderWizard(); })); t.focus(); return;
   }
   if (s === "class") {
     const box = wizardFrame("Pick a class.", `Classes native to ${WZ.world.name}. Tap one to see what it does.`);
@@ -1028,51 +1053,10 @@ function renderWizard(){
       WZ.classes.forEach((c, i) => acc.append(classCard(c, i)));
       acc.append(customClassCard());
     }
-    box.append(nextBtn("Choose class", () => { WZ.step = "stats"; WZ.draft.base = null; renderWizard(); }, !WZ.draft.cls));
-    return;
-  }
-  if (s === "stats") {
-    const box = wizardFrame("Roll your abilities.", "Four six-sided dice, drop the lowest. Your class adds its bonuses.");
-    if (!WZ.draft.base) WZ.draft.base = rollStats();
-    const g = el("div","statgrid");
-    for (const k of STATS) { const b = WZ.draft.cls.bonus?.[k] || 0, v = WZ.draft.base[k] + b; const s2 = el("div","stat"); s2.append(el("b",null,k), el("div","v",v), el("div","m",fmtMod(mod(v)))); if (b) s2.append(el("div","bn " + (b > 0 ? "plus" : "minus"), `${fmtMod(b)} class`)); g.append(s2); }
-    const rr = el("button","btn","Reroll"); rr.addEventListener("click", () => { WZ.draft.base = rollStats(); renderWizard(); });
-    box.append(g, rr, nextBtn("Keep these", () => { WZ.step = "story"; renderWizard(); }));
-    return;
-  }
-  if (s === "story") {
-    const box = wizardFrame(`${nm()}'s story.`, "Write it yourself, let the Forge write it, or skip and discover it in play.");
-    const t = el("textarea"); t.id = "wzStory"; t.maxLength = 1500; t.style.minHeight = "160px"; t.placeholder = "What happened before the story starts?"; t.value = WZ.draft.story?.backstory || "";
-    const extra = el("div","pane");
-    const showExtra = () => { extra.textContent = ""; const s2 = WZ.draft.story; if (!s2) return; for (const [k, v] of [["Trait",s2.trait],["Flaw",s2.flaw],["Bond",s2.bond],["Hook",s2.hook]]) if (v) { const r = el("div"); r.append(el("b",null,k + ". "), document.createTextNode(v)); extra.append(r); } };
-    showExtra();
-    const st = el("p","status");
-    const ai = el("button","btn","Write it for me");
-    ai.addEventListener("click", async () => {
-      await ready; if (!SAMPLE) { st.textContent = ERRCOPY.unavailable; st.classList.add("err"); return; }
-      ai.disabled = true; st.classList.remove("err"); st.textContent = "The Forge is remembering who they were...";
-      try {
-        const r = await SAMPLE.json(`Write an original backstory for a tabletop RPG character in this world.
-WORLD: ${WZ.world.name}. ${WZ.world.premise}
-Name: ${WZ.draft.name} (${WZ.draft.pronouns})
-Appearance: ${describeAvatar(WZ.draft.avatar)}. ${WZ.draft.look || ""}
-Origin: ${WZ.draft.origin || "(not given, invent one that fits the world)"}
-Class: ${WZ.draft.cls.name}: ${WZ.draft.cls.blurb}
-Reply with only JSON: {"backstory": 2 short paragraphs under 150 words, "trait": one sentence, "flaw": one sentence, "bond": one sentence, "hook": one sentence a Game Master can use}`, { cache:false, seat:"forge" });
-        if (!r || !r.backstory) throw { code:"invalid_json" };
-        WZ.draft.story = { backstory:String(r.backstory).slice(0,1500), trait:String(r.trait||""), flaw:String(r.flaw||""), bond:String(r.bond||""), hook:String(r.hook||"") };
-        t.value = WZ.draft.story.backstory; showExtra(); st.textContent = "";
-      } catch (e) { st.textContent = errText(e); st.classList.add("err"); }
-      ai.disabled = false;
-    });
-    box.append(t, el("div","row"), extra, st);
-    box.querySelector(".row").append(ai);
-    box.append(nextBtn("Save character", async () => {
-      const dr = WZ.draft; dr.story = { ...(dr.story || {}), backstory: t.value.trim() };
-      const stats = {}; for (const k of STATS) stats[k] = dr.base[k] + (dr.cls.bonus?.[k] || 0);
-      const c = { id:dr.id, world:dr.world, name:dr.name, pronouns:dr.pronouns, look:dr.look, origin:dr.origin, cls:dr.cls, stats, story:dr.story, portrait:dr.portrait, avatar:dr.avatar, hp:Math.max(1, (dr.cls.hitDie || 8) + mod(stats.CON)), updated:Date.now() };
-      await saveChar(c); WZ.char = c; WZ.justMade = true; WZ.step = "mode"; renderWizard(); toast(`${c.name} saved.`);
-    }));
+    const go1 = nextBtn("Begin story →", async () => { go1.disabled = true; const c = await finishChar(); startGame("solo", c, WZ.world); }, !WZ.draft.cls);
+    const fr = el("button","btn ghost block","Play with friends instead"); fr.disabled = !WZ.draft.cls;
+    fr.addEventListener("click", async () => { fr.disabled = true; const c = await finishChar(); WZ.char = c; WZ.justMade = true; WZ.step = "mode"; renderWizard(); });
+    box.append(go1, fr);
     return;
   }
   if (s === "mode") {
@@ -1088,6 +1072,30 @@ Reply with only JSON: {"backstory": 2 short paragraphs under 150 words, "trait":
     m.append(solo, host, join); box.append(m);
     const ed = el("button","btn small","Edit character"); ed.addEventListener("click", () => editChar(c, nc => { WZ.char = nc; renderWizard(); })); box.append(ed);
   }
+}
+async function finishChar(){
+  const dr = WZ.draft; const base = rollStats();
+  const stats = {}; for (const k of STATS) stats[k] = base[k] + (dr.cls.bonus?.[k] || 0);
+  const c = { id:dr.id, world:dr.world, name:dr.name, pronouns:dr.pronouns, look:dr.look, origin:dr.origin, cls:dr.cls, stats, story:null, portrait:dr.portrait, avatar:dr.avatar, hp:Math.max(1, (dr.cls.hitDie || 8) + mod(stats.CON)), updated:Date.now() };
+  await saveChar(c); forgeStory(c, WZ.world);
+  return c;
+}
+async function forgeStory(c, w){
+  await ready; if (!SAMPLE) return;
+  try {
+    const r = await SAMPLE.json(`Write an original backstory for a tabletop RPG character in this world.
+WORLD: ${w.name}. ${w.premise}
+Name: ${c.name} (${c.pronouns})
+Appearance: ${describeAvatar(c.avatar)}. ${c.look || ""}
+Origin: ${c.origin || "(not given, invent one that fits the world)"}
+Class: ${c.cls.name}: ${c.cls.blurb}
+Reply with only JSON: {"backstory": 2 short paragraphs under 150 words, "trait": one sentence, "flaw": one sentence, "bond": one sentence, "hook": one sentence a Game Master can use}`, { cache:false, seat:"forge" });
+    if (!r || !r.backstory) return;
+    const story = { backstory:String(r.backstory).slice(0,1500), trait:String(r.trait||""), flaw:String(r.flaw||""), bond:String(r.bond||""), hook:String(r.hook||"") };
+    const cur = chars.find(x => x.id === c.id) || c; if (cur.story?.backstory) return;
+    cur.story = story; c.story = story; await saveChar(cur);
+    if (typeof T !== "undefined" && T && T.me && T.me.id === c.id) { T.me.story = story; try { renderSide(); syncMe(); } catch {} }
+  } catch {}
 }
 function classCard(c, i){
   const hues = ["#7ee0c2","#c79bff","#7cc7f0"]; const open = WZ.openCls === c.name, sel = WZ.draft.cls?.name === c.name;

@@ -43,7 +43,17 @@ Reply with only JSON:
     btn.click(); await sleep(20); return true;
   }
 
+  async function build(creator, desc) {
+    const s = await getSample(); if (!s) throw { code: "unavailable" };
+    const r = await s.json(prompt(desc), { modelTier: "quick", cache: false, seat: "forge" });
+    let n = 0;
+    for (const key of Object.keys(OPTS)) if (r && typeof r[key] === "string" && await press(creator, key, r[key].toLowerCase().trim())) n++;
+    return n;
+  }
+  window.lhFace = { build };
+
   function inject(creator) {
+    if (creator.closest("[data-nofacegen]")) return;
     if (creator.previousElementSibling?.classList.contains("facegen")) return;
     const box = document.createElement("div"); box.className = "facegen";
     box.style.cssText = "display:flex;flex-direction:column;gap:8px;margin-bottom:14px";
