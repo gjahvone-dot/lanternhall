@@ -1259,7 +1259,7 @@ async function startGame(mode, c, w, code){
   resetT(); T.me = prepMe(c);
   if (mode === "join") {
     T.mode = "multi"; T.isHost = false; T.camp = null;
-    try { await openRoom(code, false); } catch (e) { lastJoinErr = e.code === "noroom" ? "Shared tables aren't switched on for this site yet." : "Couldn't join that table. Check the code."; $("#joinMsg").textContent = lastJoinErr; resetT(); return false; }
+    try { await openRoom(code, false); } catch (e) { lastJoinErr = e.code === "full" ? `That table is full (${MAX_TABLE} players max).` : e.code === "noroom" ? "Shared tables aren't switched on for this site yet." : "Couldn't join that table. Check the code."; $("#joinMsg").textContent = lastJoinErr; resetT(); return false; }
     showTable(); addEntry({ kind:"sys", text:"Waiting for the host to share the story..." }); return true;
   }
   T.camp = { id:w.id, name:w.name, premise:w.premise, anime:isAnime(w) };
@@ -1658,6 +1658,7 @@ function applyLog(x){
   else if (x.kind === "sys") addEntry({ kind:"sys", text:String(x.text).slice(0,200) });
   renderSide();
 }
+const MAX_TABLE = 6; /* players per shared table */
 async function openRoom(code, host){
   await ready; if (!ROOM) throw { code:"noroom" };
   const R = await ROOM.join("t-" + code.toLowerCase());
@@ -1673,7 +1674,13 @@ async function openRoom(code, host){
     (Array.isArray(x.log) ? x.log : []).forEach(e => applyLog({ ...e, replay:true, choices:[], roll:null }));
     addEntry({ kind:"sys", text:"You joined the table." }); wake(); renderSide();
   });
-  R.onPeers(ch => { T.peers = ch.peers.slice(); renderParty(); if (T.isHost && ch.joined.some(p => !p.isMe)) sendSync(); });
+  let firstPeers; const gotPeers = new Promise(r => firstPeers = r);
+  R.onPeers(ch => { T.peers = ch.peers.slice(); firstPeers(); renderParty(); if (T.isHost && ch.joined.some(p => !p.isMe)) sendSync(); });
+  if (!host) {
+    await Promise.race([gotPeers, new Promise(r => setTimeout(r, 1500))]);
+    const others = (T.peers || []).filter(p => !p.isMe).length;
+    if (others >= MAX_TABLE) { try { R.leave(); } catch {} T.R = null; throw { code:"full" }; }
+  }
   await R.presence({ char: brief(T.me), host });
 }
 function sendSync(){
