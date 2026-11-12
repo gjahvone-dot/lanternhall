@@ -32,6 +32,21 @@ function limited(ip) {
   return arr.length > max;
 }
 
+// --- daily per-person cap, counted in Supabase so it holds across every server instance ---
+async function dailyCount(ip) {
+  const url = env("SUPABASE_URL"), key = env("SUPABASE_ANON_KEY");
+  if (!url || !key) return 0;
+  try {
+    const dig = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("lanternhall:" + ip));
+    const who = btoa(String.fromCharCode(...new Uint8Array(dig))).slice(0, 22);
+    const ac = new AbortController(); const t = setTimeout(() => ac.abort(), 2500);
+    const r = await fetch(url + "/rest/v1/rpc/lh_hit", { method: "POST", signal: ac.signal, headers: { apikey: key, Authorization: "Bearer " + key, "content-type": "application/json" }, body: JSON.stringify({ who }) });
+    clearTimeout(t);
+    if (!r.ok) return 0;
+    return +(await r.json()) || 0;
+  } catch { return 0; } // never block play because the counter is down
+}
+
 function upstreamRequest(provider, model, messages, maxTokens, signal) {
   if (provider === "anthropic") {
     return fetch("https://api.anthropic.com/v1/messages", {
@@ -79,6 +94,8 @@ export default async function handler(req) {
   if (code && req.headers.get("x-access-code") !== code) return new Response("Access code required", { status: 401 });
   const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "anon";
   if (limited(ip)) return new Response("Too many requests. Wait a few minutes.", { status: 429 });
+  const daily = +env("DAILY_LIMIT", "300");
+  if (daily > 0 && await dailyCount(ip) > daily) return new Response("daily_limit", { status: 429, headers: { "x-limit": "daily" } });
 
   let body; try { body = await req.json(); } catch { return new Response("Bad JSON", { status: 400 }); }
   const messages = (Array.isArray(body.messages) ? body.messages : [])
