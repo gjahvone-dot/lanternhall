@@ -1658,7 +1658,7 @@ function applyLog(x){
   else if (x.kind === "sys") addEntry({ kind:"sys", text:String(x.text).slice(0,200) });
   renderSide();
 }
-const MAX_TABLE = 6; /* players per shared table */
+const MAX_TABLE = 5; /* players per shared table, host included */
 async function openRoom(code, host){
   await ready; if (!ROOM) throw { code:"noroom" };
   const R = await ROOM.join("t-" + code.toLowerCase());
