@@ -409,6 +409,38 @@ details.fine>div{padding:0 14px 14px;display:flex;flex-direction:column;gap:14px
   nav.links{margin-left:0}
   .wbar input{max-width:none;margin-left:0}
 }
+/* ---- polish pass ---- */
+#homeTiles{grid-template-columns:repeat(4,minmax(0,1fr))}
+#homeTiles .tile{aspect-ratio:5/6}
+#actSend{border-radius:12px;align-self:stretch;min-width:84px}
+.next .sendrow{position:sticky;bottom:0;z-index:20;padding-block:10px calc(10px + env(safe-area-inset-bottom,0px));background:linear-gradient(to bottom,transparent,var(--bg) 22%)}
+.next .sendrow textarea{background:var(--surface)}
+.mhud{display:none}
+.choices .choice{transition:transform .15s,border-color .15s}
+.choices .choice:hover{transform:translateY(-2px)}
+.joinbar .btn{white-space:nowrap}
+@media (max-width:820px){
+  .tale{order:-1}
+  .mhud{display:flex;align-items:center;gap:10px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 54px);z-index:25;background:rgb(10 14 22 / .94);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin-bottom:14px;text-align:left}
+  .mhud .face{width:38px;height:38px}
+  .mhud .mn{font:700 17px/1.1 var(--display)}
+  .mhud .mbar{height:6px;border-radius:3px;background:#ffffff14;overflow:hidden;margin-top:4px;width:120px;max-width:100%}
+  .mhud .mbar b{display:block;height:100%;background:#e0453a}
+  .mhud .mhp{font:500 11px var(--mono);color:var(--muted)}
+  .mhud .btn{margin-left:auto}
+}
+@media (max-width:760px){ #homeTiles{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media (max-width:520px){
+  .top .wrap{flex-wrap:nowrap;gap:6px;padding-block:8px}
+  .mark{font-size:19px;gap:5px}
+  .mark svg{width:18px;height:18px}
+  nav.links{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-left:auto}
+  nav.links::-webkit-scrollbar{display:none}
+  nav.links a{padding:6px 7px;font-size:13px;white-space:nowrap}
+  .mhud{top:calc(env(safe-area-inset-top,0px) + 46px)}
+  .joinbar{flex-direction:column;align-items:stretch}
+  .joinbar .field{min-width:0}
+}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 <style>html,body{margin:0}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}img{max-width:100%}</style>
@@ -560,6 +592,7 @@ details.fine>div{padding:0 14px 14px;display:flex;flex-direction:column;gap:14px
    </div>
   </aside>
   <div class="tale">
+    <div class="mhud" id="mHud"></div>
     <div class="talehead"><p class="label" id="tblLabel"></p><h2 id="tblTitle"></h2></div>
     <div class="log" id="log" aria-live="polite"></div>
     <div class="next">
@@ -1027,7 +1060,7 @@ function charMeta(c){ const w = worldById(c.world); return `${c.cls?.name || "Ad
 function renderChars(){
   const g = $("#charGrid"); g.textContent = "";
   const js = $("#joinChar"); js.textContent = "";
-  if (!chars.length) { g.append(el("div","empty","No characters yet. Pick a world to make your first one.")); const o = el("option",null,"Make a character first"); o.value = ""; js.append(o); }
+  if (!chars.length) { { const em = el("div","empty"); em.append(el("p",null,"No characters yet. Pick a world to make your first one.")); const gb = el("button","btn primary","Choose a world"); gb.style.marginTop = "12px"; gb.addEventListener("click", () => go("worlds")); em.append(gb); g.append(em); } const o = el("option",null,"Make a character first"); o.value = ""; js.append(o); }
   for (const c of [...chars].sort((a, b) => (b.updated || 0) - (a.updated || 0))) {
     const o = el("option",null,`${c.name} (${c.cls?.name || ""})`); o.value = c.id; js.append(o);
     const card = el("div","ccard"); const pic = el("div","pic"); picInto(pic, c);
@@ -1501,10 +1534,19 @@ function renderMe(){
   $("#hpFill").style.width = (100 * T.me.hpCur / T.me.hpMax) + "%"; $("#hpTxt").textContent = `${T.me.hpCur}/${T.me.hpMax}`;
   $("#lvTxt").textContent = "LVL " + T.me.level; $("#xpFill").style.width = (100 * T.me.xp / xpNeed()) + "%"; $("#xpTxt").textContent = `${T.me.xp}/${xpNeed()}`;
 }
+function renderHud(){
+  const h = $("#mHud"); if (!h || !T.me) return; h.textContent = "";
+  const f = faceEl(T.me.name, T.me.avatar, T.me.portrait);
+  const mid = el("div"); mid.append(el("div","mn",T.me.name));
+  const bar = el("div","mbar"); const fill = el("b"); fill.style.width = Math.max(0, Math.min(100, 100 * (T.me.hpCur || 0) / (T.me.hpMax || 1))) + "%"; bar.append(fill);
+  mid.append(bar, el("div","mhp",`HP ${T.me.hpCur}/${T.me.hpMax} · Lvl ${T.me.level || 1}${T.mode !== "solo" && T.code ? " · Table " + T.code : ""}`));
+  const b = el("button","btn small","Sheet"); b.addEventListener("click", () => { const r = document.querySelector(".rail"); if (r) r.scrollIntoView({ behavior:"smooth", block:"start" }); });
+  h.append(f, mid, b);
+}
 function renderSide(){
   $("#roundN").textContent = T.round; $("#fateMark").style.left = `calc(${50 + T.chron.fate * 16.6}% - 2px)`;
   if (T.scene) $("#tblTitle").textContent = T.scene;
-  renderMe(); renderPane(); renderParty();
+  renderMe(); renderPane(); renderParty(); renderHud();
 }
 function renderParty(){
   const p = $("#party"); p.textContent = "";
