@@ -36,7 +36,7 @@ document.addEventListener("DOMContentLoaded", () => { const s = document.createE
         body: JSON.stringify({ messages, tier: opts.modelTier || "default", seat: opts.seat || "gm" }) });
     } catch (e) { throw { code: e && e.name === "AbortError" ? "cancelled" : "upstream_error", message: String(e) }; }
     if (r.status === 401 && attempt < 2) { await askCode(); return callAI(input, opts, attempt + 1); }
-    if (r.status === 429) throw { code: "rate_limited", message: await r.text().catch(() => "") };
+    if (r.status === 429) { const m = await r.text().catch(() => ""); throw { code: m === "daily_limit" ? "daily_limit" : "rate_limited", message: m }; }
     if ([500, 502, 503, 504].includes(r.status) && attempt < 2 && !(opts.signal && opts.signal.aborted)) {
       await new Promise(z => setTimeout(z, 2500 * (attempt + 1)));
       return callAI(input, opts, attempt + 1);
@@ -69,7 +69,7 @@ document.addEventListener("DOMContentLoaded", () => { const s = document.createE
 
   // ---------- tts (browser voices) ----------
   const VOICE_IDX = { buttery: 0, airy: 1, glassy: 2, rounded: 3 }, PITCH = { buttery: 1, airy: 1.2, glassy: 1.08, rounded: 0.82 };
-  const pickVoice = name => { const vs = speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang)); return vs.length ? vs[(VOICE_IDX[name] || 0) % vs.length] : null; };
+  const pickVoice = name => { const all = speechSynthesis.getVoices(); if (name === "narrator") { const want = ls.get("lh.voice"); const v = want && all.find(x => x.voiceURI === want); if (v) return v; } const vs = all.filter(v => /^en/i.test(v.lang)); return vs.length ? vs[(VOICE_IDX[name] || 0) % vs.length] : null; };
   const tts = ("speechSynthesis" in window) ? {
     speak(textOrLines, opts = {}) {
       const lines = Array.isArray(textOrLines) ? textOrLines : [{ text: textOrLines, voice: opts.voice }];
@@ -133,6 +133,29 @@ document.addEventListener("DOMContentLoaded", () => { const s = document.createE
     };
   }
   const room = { join };
+
+  // ---------- cloud saves (Supabase table lh_saves; each row is readable only with its owner's player code) ----------
+  const genCode = () => { const A = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; const r = crypto.getRandomValues(new Uint8Array(20)); return [...r].map(x => A[x % A.length]).join("").replace(/(.{5})(?!$)/g, "$1-"); };
+  let owner = ls.get("lh.player"); if (!owner) { owner = genCode(); ls.set("lh.player", owner); }
+  let cdb = null, cdbOwner = null, cloudState = null;
+  const cloud = () => {
+    if (!cdb || cdbOwner !== owner) { cdb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, { global: { headers: { "x-lh-owner": owner } }, auth: { persistSession: false, autoRefreshToken: false, storageKey: "lh-cloud" } }); cdbOwner = owner; }
+    return cdb.from("lh_saves");
+  };
+  window.lhCloud = {
+    code: () => owner,
+    setCode(c) { c = String(c || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, ""); if (c.length < 16) return false; c = c.replace(/(.{5})(?!$)/g, "$1-"); owner = c; ls.set("lh.player", c); cloudState = null; return true; },
+    async available() {
+      if (cloudState !== null) return cloudState;
+      await cfgReady;
+      if (!cfg.supabaseUrl || !cfg.supabaseAnonKey || !window.supabase) return (cloudState = false);
+      try { const { error } = await cloud().select("key").limit(1); cloudState = !error; } catch { cloudState = false; }
+      return cloudState;
+    },
+    async pull() { const { data, error } = await cloud().select("key,data,updated_at"); if (error) throw error; return data || []; },
+    async put(key, data) { const { error } = await cloud().upsert({ owner, key, data, updated_at: new Date().toISOString() }); if (error) throw error; },
+    async del(key) { const { error } = await cloud().delete().eq("owner", owner).eq("key", key); if (error) throw error; },
+  };
 
   window.lhCouncil = null; cfgReady.then(() => { window.lhCouncil = cfg.council || null; });
   window.claude = {

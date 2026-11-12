@@ -236,6 +236,7 @@ details.fine>div{padding:0 14px 14px;display:flex;flex-direction:column;gap:14px
 .pimg{position:absolute;inset:0;background:center top/cover no-repeat}
 .pc .pic,.wake .wp,.portrait{background-position:center top!important}
 .face img{width:100%;height:100%;object-fit:cover;object-position:center top;display:block}
+.say .av img{width:100%;height:100%;object-fit:cover;object-position:center top;display:block;border-radius:50%}
 .paintprev{width:96px;aspect-ratio:4/5;border-radius:8px;border:1px solid var(--line);background:#0a0e16 center top/cover no-repeat}
 .pimg svg,.pic svg,.wp svg{position:absolute;inset:0;width:100%;height:100%}
 .face{width:44px;height:44px;border-radius:50%;overflow:hidden;flex:none;border:1px solid #ffffff22}
@@ -410,6 +411,38 @@ details.fine>div{padding:0 14px 14px;display:flex;flex-direction:column;gap:14px
   .wbar input{max-width:none;margin-left:0}
 }
 /* ---- polish pass ---- */
+.audiobar{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.audiobar .chip{font-size:12px;padding:4px 10px}
+.recap{border:1px solid #f2c14e44;background:linear-gradient(180deg,#221b0c,#120f0a);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.recap .label{color:var(--gold)}
+.recap ul{margin:0;padding-left:18px;color:var(--muted);font-size:14px}
+.combat{border:1px solid #e0453a55;background:linear-gradient(180deg,#2a0e0e,#140a0d);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;animation:rise .3s}
+.combat .chead{display:flex;justify-content:space-between;align-items:baseline}
+.combat .chead .label{color:#ff8a7a}
+.combat .order{display:flex;flex-wrap:wrap;gap:4px;align-items:center;font-size:13px}
+.combat .oc{padding:3px 8px;border-radius:999px;background:#ffffff10;border:1px solid #ffffff1c}
+.combat .oc.foe{background:#e0453a22;border-color:#e0453a55;color:#ffb4aa}
+.combat .arr{color:var(--muted)}
+.combat .foes{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px}
+.combat .foe{border:1px solid #ffffff1a;border-radius:10px;padding:9px 10px;background:#0006;display:flex;flex-direction:column;gap:6px;position:relative}
+.combat .foe .ft{display:flex;justify-content:space-between;gap:6px;align-items:baseline}
+.combat .foe b{font-size:15px}
+.combat .fhp{font:600 12px var(--mono);color:#ffb4aa}
+.combat .fbar{height:7px;border-radius:4px;background:#ffffff14;overflow:hidden}
+.combat .fbar i{display:block;height:100%;background:linear-gradient(90deg,#b8261b,#ff5a43);transition:width .5s}
+.combat .fnote{font-size:12px;color:var(--muted)}
+.combat .foe .btn{align-self:flex-start}
+.combat .foe.down{opacity:.45}
+.combat .foe.down b{text-decoration:line-through}
+.combat .foe.hitfx{animation:shake .4s}
+.recent{margin:4px 0 18px;display:flex;flex-direction:column;gap:8px}
+.recent .rt{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:var(--surface)}
+.recent .rt .code{font:700 16px var(--mono);letter-spacing:.12em;color:var(--gold)}
+.recent .rt .btn{margin-left:auto}
+.cloudbox{margin-top:20px;border:1px solid var(--line);border-radius:14px;padding:16px;background:var(--surface);display:flex;flex-direction:column;gap:10px}
+.cloudbox .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.cloudbox code{font:600 15px var(--mono);letter-spacing:.06em;background:#0008;border:1px solid var(--line);padding:8px 12px;border-radius:8px;user-select:all;word-break:break-all}
+.cloudbox input{flex:1;min-width:0;font:15px var(--mono);text-transform:uppercase}
 #homeTiles{grid-template-columns:repeat(4,minmax(0,1fr))}
 #homeTiles .tile{aspect-ratio:5/6}
 #actSend{border-radius:12px;align-self:stretch;min-width:84px}
@@ -524,8 +557,15 @@ details.fine>div{padding:0 14px 14px;display:flex;flex-direction:column;gap:14px
     <button class="btn" id="joinGo">Join table</button>
     <p class="status" id="joinMsg" style="flex-basis:100%"></p>
   </div>
+  <div class="recent" id="recentTables" hidden></div>
   <div class="cgrid" id="charGrid"></div>
   <p class="muted" style="font-size:13px;margin-top:14px" id="storeNote"></p>
+  <section class="cloudbox" id="cloudBox" hidden>
+    <div><p class="label">Cloud save</p><p class="muted">Your characters and saved games are backed up under this player code. Keep it somewhere safe: it is the only key to your saves.</p></div>
+    <div class="row"><code id="cloudCode"></code><button class="btn small" id="cloudCopy">Copy</button></div>
+    <div class="row"><input id="cloudIn" placeholder="Playing on another device? Paste your player code" aria-label="Player code"><button class="btn small" id="cloudLoad">Load my saves</button></div>
+    <p class="status" id="cloudMsg"></p>
+  </section>
 </main>
 
 <!-- GUIDE -->
@@ -586,6 +626,8 @@ details.fine>div{padding:0 14px 14px;display:flex;flex-direction:column;gap:14px
        <div class="lamp" id="lamp-ch"><i></i>Chronicler<small class="muted" style="margin-left:auto" data-seat="chronicler"></small></div>
        <div class="lamp" id="lamp-vo"><i></i>Voices<small class="muted" style="margin-left:auto" data-seat="voices"></small></div>
        <label class="lamp" id="voiceRow" hidden style="cursor:pointer"><input type="checkbox" id="autoVoice" style="width:auto"> Read dialogue aloud</label>
+       <label class="lamp" id="narrRow" hidden style="cursor:pointer"><input type="checkbox" id="autoNarr" style="width:auto"> Read the whole story aloud</label>
+       <label class="field" id="voicePickRow" hidden><span>Narrator voice</span><select id="voicePick"></select></label>
      </div>
      <div class="box"><span class="label">Party</span><div class="party" id="party"></div><button class="btn small" id="claimHost" hidden>Run the Game Master</button></div>
      <button class="btn small" id="leaveTbl">Leave table</button>
@@ -593,12 +635,14 @@ details.fine>div{padding:0 14px 14px;display:flex;flex-direction:column;gap:14px
   </aside>
   <div class="tale">
     <div class="mhud" id="mHud"></div>
-    <div class="talehead"><p class="label" id="tblLabel"></p><h2 id="tblTitle"></h2></div>
+    <div class="talehead"><p class="label" id="tblLabel"></p><h2 id="tblTitle"></h2>
+      <div class="audiobar"><button class="chip" id="musicBtn" aria-pressed="false">Music off</button><button class="chip" id="sfxBtn" aria-pressed="true">Sounds on</button><button class="chip" id="shareBtn" hidden>Invite link</button></div></div>
     <div class="log" id="log" aria-live="polite"></div>
     <div class="next">
       <p class="tbc">To be continued</p>
       <p class="whonext"><b id="nextName"></b> decides what happens next</p>
       <p class="status err" id="aiErr" style="text-align:center"></p>
+      <div class="combat" id="combat" hidden></div>
       <div class="rolltip" id="rollAsk" hidden></div>
       <div class="choices" id="choices"></div>
       <div class="waitbar" id="waitBar" hidden></div>
@@ -622,7 +666,38 @@ details.fine>div{padding:0 14px 14px;display:flex;flex-direction:column;gap:14px
 (() => {
 const $ = s => document.querySelector(s);
 const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
-const store = { get(k, d){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } }, set(k, v){ try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
+const store = { get(k, d){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } }, set(k, v){ try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} cloudTouch(k, v); } };
+/* ---------- cloud save (website): characters, worlds and saved games follow your player code ---------- */
+const CLOUD_KEY = k => /^lh\.(chars|worlds|gone|solo\.|host\.)/.test(k);
+let cloudOn = false, cloudT = null; const cloudQ = new Map();
+function cloudStamp(k){ try { const ts = JSON.parse(localStorage.getItem("lh.ts") || "{}"); ts[k] = Date.now(); localStorage.setItem("lh.ts", JSON.stringify(ts)); } catch {} }
+function cloudTouch(k, v){ if (!CLOUD_KEY(k)) return; cloudStamp(k); if (!cloudOn) return; cloudQ.set(k, v); clearTimeout(cloudT); cloudT = setTimeout(cloudFlush, 1500); }
+async function cloudFlush(){
+  if (!cloudOn || !window.lhCloud) return; let bad = false;
+  for (const [k, v] of [...cloudQ]) { cloudQ.delete(k); try { v == null ? await lhCloud.del(k) : await lhCloud.put(k, v); } catch { cloudQ.set(k, v); bad = true; } }
+  cloudStatus(bad ? "Couldn't reach the cloud. Will retry." : "Saved to the cloud.");
+  if (bad) { clearTimeout(cloudT); cloudT = setTimeout(cloudFlush, 20000); }
+}
+function cloudStatus(t){ const n = document.getElementById("cloudMsg"); if (n) n.textContent = t; }
+function mergeById(a, b, gone){ const m = new Map(); for (const x of [...(a || []), ...(b || [])]) { if (!x || !x.id || gone.has(x.id)) continue; const o = m.get(x.id); if (!o || (x.updated || 0) >= (o.updated || 0)) m.set(x.id, x); } return [...m.values()]; }
+async function cloudSync(){
+  if (!window.lhCloud) return false;
+  if (!(await lhCloud.available())) { cloudOn = false; return false; }
+  cloudOn = true;
+  let rows; try { rows = await lhCloud.pull(); } catch { cloudStatus("Couldn't reach the cloud right now."); return false; }
+  const ts = (() => { try { return JSON.parse(localStorage.getItem("lh.ts") || "{}"); } catch { return {}; } })();
+  const raw = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+  const cloudMap = new Map(rows.map(r => [r.key, r]));
+  const gone = new Set([...(store.get("lh.gone", [])), ...((cloudMap.get("lh.gone") || {}).data || [])]);
+  raw("lh.gone", [...gone]);
+  for (const k of ["lh.chars","lh.worlds"]) { const merged = mergeById(store.get(k, []), (cloudMap.get(k) || {}).data, gone); raw(k, merged); cloudQ.set(k, merged); }
+  cloudQ.set("lh.gone", [...gone]);
+  for (const r of rows) { if (["lh.chars","lh.worlds","lh.gone"].includes(r.key)) continue; const cT = Date.parse(r.updated_at) || 0, lT = ts[r.key] || 0; if (cT > lT) { raw(r.key, r.data); ts[r.key] = cT; } else if (lT > cT) cloudQ.set(r.key, store.get(r.key, null)); }
+  for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (CLOUD_KEY(k) && !cloudMap.has(k)) cloudQ.set(k, store.get(k, null)); }
+  try { localStorage.setItem("lh.ts", JSON.stringify(ts)); } catch {}
+  cloudFlush();
+  return true;
+}
 const rid = () => Math.random().toString(36).slice(2, 10);
 const d = n => 1 + Math.floor(Math.random() * n);
 const mod = v => Math.floor(((+v || 10) - 10) / 2);
@@ -649,9 +724,91 @@ const FALLBACK_CLASSES = [
   { name:"Shade", blurb:"Quiet infiltrator who strikes from cover", hitDie:8, primary:"DEX", bonus:{DEX:2,INT:1,STR:-1}, skills:["Stealth","Sleight of Hand","Perception"], abilities:[{name:"Vanish",desc:"Disappear when no one is watching you directly."},{name:"Low Blow",desc:"Extra 1d6 damage against a distracted foe."}], kit:[{name:"Twin knives",cat:"Weapon"},{name:"Lockpicks",cat:"Item"},{name:"Smoke pellet",cat:"Consumable"}] },
   { name:"Arcanist", blurb:"Scholar of hidden forces", hitDie:6, primary:"INT", bonus:{INT:2,WIS:1,CON:-1}, skills:["Arcana","History","Investigation"], abilities:[{name:"Spark",desc:"Hurl raw force for 1d10 damage."},{name:"Read the Weave",desc:"Sense magic or strange power nearby."}], kit:[{name:"Focus staff",cat:"Weapon"},{name:"Notebook of sigils",cat:"Trinket"},{name:"Ink of warding",cat:"Consumable"}] }
 ];
-const ERRCOPY = { not_granted:"AI is turned off for this page. Allow it from the page's permissions to play.", sampling_disabled:"AI isn't available on this account.", rate_limited:"The council needs a short rest. Try again in a minute.", session_expired:"Sign in again to keep playing.", refused:"The Game Master won't run that. Try a different action.", invalid_json:"The answer came back garbled. Try again.", unavailable:"The AI server isn't reachable right now. Try again in a moment." };
+const ERRCOPY = { daily_limit:"You've used today's free AI turns on this site. They reset tomorrow. Thanks for playing!", not_granted:"AI is turned off for this page. Allow it from the page's permissions to play.", sampling_disabled:"AI isn't available on this account.", rate_limited:"The council needs a short rest. Try again in a minute.", session_expired:"Sign in again to keep playing.", refused:"The Game Master won't run that. Try a different action.", invalid_json:"The answer came back garbled. Try again.", unavailable:"The AI server isn't reachable right now. Try again in a moment." };
 const errText = e => ERRCOPY[e && e.code] || "Something went wrong reaching the AI. Try again.";
 function toast(t){ const n = el("div","toast",t); document.body.append(n); setTimeout(() => n.remove(), 2600); }
+
+
+/* ---------- music & sound (made live in the browser, nothing to download) ---------- */
+const AU = { ctx:null, out:null, mus:null, fxg:null, music:false, sfx:true, mood:null, timer:null, next:0, step:0, delay:null };
+try { const p = JSON.parse(localStorage.getItem("lh.audio") || "{}"); AU.music = !!p.music; AU.sfx = p.sfx !== false; } catch {}
+const saveAudio = () => { try { localStorage.setItem("lh.audio", JSON.stringify({ music:AU.music, sfx:AU.sfx })); } catch {} };
+function actx(){
+  if (!AU.ctx) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; try { AU.ctx = new C(); } catch { return null; }
+    AU.out = AU.ctx.createGain(); AU.out.gain.value = .9; AU.out.connect(AU.ctx.destination);
+    AU.mus = AU.ctx.createGain(); AU.mus.gain.value = 0; AU.fxg = AU.ctx.createGain(); AU.fxg.gain.value = .5; AU.fxg.connect(AU.out);
+    const d = AU.ctx.createDelay(1.5); d.delayTime.value = .38; const fb = AU.ctx.createGain(); fb.gain.value = .32; const lp = AU.ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 2200;
+    AU.mus.connect(AU.out); AU.mus.connect(d); d.connect(lp); lp.connect(fb); fb.connect(d); lp.connect(AU.out); AU.delay = d; }
+  if (AU.ctx.state === "suspended") AU.ctx.resume().catch(() => {});
+  return AU.ctx;
+}
+const hz = m => 440 * Math.pow(2, (m - 69) / 12);
+function tone(dest, t, midi, dur, { type = "triangle", vol = .1, att = .02, rel = .3, cut = 0, detune = 0 } = {}){
+  const c = AU.ctx, o = c.createOscillator(), g = c.createGain(); o.type = type; o.frequency.value = hz(midi); o.detune.value = detune;
+  let n = o; if (cut) { const f = c.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = cut; o.connect(f); n = f; }
+  n.connect(g); g.connect(dest); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + att); g.gain.setValueAtTime(vol, t + Math.max(att, dur - rel)); g.gain.linearRampToValueAtTime(0, t + dur);
+  o.start(t); o.stop(t + dur + .05);
+}
+function noise(dest, t, dur, { vol = .1, f = 3000, q = 1, type = "bandpass" } = {}){
+  const c = AU.ctx, len = Math.max(1, Math.floor(c.sampleRate * dur)), b = c.createBuffer(1, len, c.sampleRate), ch = b.getChannelData(0);
+  for (let i = 0; i < len; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const s = c.createBufferSource(); s.buffer = b; const fl = c.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q; const g = c.createGain(); g.gain.value = vol;
+  s.connect(fl); fl.connect(g); g.connect(dest); s.start(t);
+}
+function kick(dest, t, vol = .5){ const c = AU.ctx, o = c.createOscillator(), g = c.createGain(); o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(42, t + .18); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.001, t + .3); o.connect(g); g.connect(dest); o.start(t); o.stop(t + .32); }
+function sfx(kind){
+  if (!AU.sfx || !actx()) return; const t = AU.ctx.currentTime + .01, D = AU.fxg;
+  if (kind === "dice") { for (let i = 0; i < 6; i++) noise(D, t + i * .055 + Math.random() * .02, .05, { vol:.35, f:2500 + Math.random() * 2500, q:3 }); }
+  else if (kind === "hit") { kick(D, t, .6); noise(D, t, .15, { vol:.25, f:900, q:.7 }); }
+  else if (kind === "win" || kind === "level") { [60,64,67,72,76].forEach((m, i) => tone(D, t + i * .09, m + (kind === "win" ? 0 : 2), .5, { type:"triangle", vol:.18, rel:.35 })); }
+  else if (kind === "fight") { [45,46].forEach((m, i) => tone(D, t + i * .16, m, .5, { type:"sawtooth", vol:.16, cut:900 })); kick(D, t, .5); }
+  else if (kind === "coin") { tone(D, t, 88, .08, { type:"square", vol:.06 }); tone(D, t + .08, 95, .25, { type:"square", vol:.06 }); }
+  else if (kind === "msg") { tone(D, t, 79, .18, { type:"sine", vol:.05 }); }
+}
+const MOODS = {
+  fantasy:{ bpm:68, chords:[[50,57,62,65],[46,53,58,62],[41,53,57,60],[48,55,60,64]], wave:"triangle", cut:1600, arp:true },
+  anime:{ bpm:84, chords:[[48,55,60,64],[45,52,57,64],[41,48,53,60],[43,50,55,62]], wave:"triangle", cut:2400, arp:true },
+  space:{ bpm:58, chords:[[45,52,57,64],[41,48,55,60],[43,50,55,62],[40,47,52,59]], wave:"sawtooth", cut:900, arp:false },
+  dark:{ bpm:50, chords:[[40,47,52,55],[41,48,53,56],[40,46,52,55],[39,46,51,58]], wave:"sawtooth", cut:600, arp:false },
+  noir:{ bpm:92, chords:[[50,53,57,60,64],[43,53,59,64],[48,52,55,59,62],[45,49,55,58]], wave:"sine", cut:2000, walk:true, brush:true },
+  battle:{ bpm:124, chords:[[45,52,57],[45,52,57],[41,48,53],[43,50,55]], wave:"sawtooth", cut:1200, drums:true, ost:true },
+};
+function moodFor(){
+  if (T.combat?.on) return "battle";
+  const w = T.camp ? (worldById(T.camp.id) || T.camp) : null; if (!w) return "fantasy";
+  const txt = `${w.name} ${w.genre || ""} ${(w.tags || []).join(" ")} ${w.like || ""}`.toLowerCase();
+  if (w.crime || T.camp.crime) return "noir";
+  if (w.nomagic || T.camp.nomagic || /zombie|horror|ghoul|curse|dead|infected|plague|haunt/.test(txt)) return "dark";
+  if (/space|galac|star|mecha|cyber|orbit|ship|planet|neon/.test(txt)) return "space";
+  if (isAnime(w)) return "anime";
+  return "fantasy";
+}
+function musicTick(){
+  const c = AU.ctx; if (!c || !AU.music) return; const M = MOODS[AU.mood] || MOODS.fantasy, beat = 60 / M.bpm;
+  while (AU.next < c.currentTime + .25) {
+    const t = AU.next, step = AU.step, bar = Math.floor(step / 4) % M.chords.length, ch = M.chords[bar], b = step % 4;
+    if (b === 0) ch.forEach((m, i) => tone(AU.mus, t, m + 12 * (M.wave === "sine" ? 0 : 0), beat * 4 + .2, { type:M.wave, vol:.045 / Math.sqrt(ch.length) * 2, att:beat * .8, rel:beat * 1.2, cut:M.cut, detune:(i % 2 ? 6 : -6) }));
+    if (b === 0) tone(AU.mus, t, ch[0] - 12, beat * 4, { type:"sine", vol:.09, att:.05, rel:beat });
+    if (M.arp && Math.random() < .7) tone(AU.mus, t + beat / 2, ch[(step * 3) % ch.length] + 24, beat * .9, { type:"sine", vol:.035, att:.01, rel:beat * .7 });
+    if (M.walk) { const w = [ch[0] - 12, ch[1] - 12, ch[2] - 12, ch[1] - 11][b]; tone(AU.mus, t, w, beat * .9, { type:"triangle", vol:.12, att:.01, rel:.2, cut:700 }); }
+    if (M.brush) { noise(AU.mus, t, .12, { vol:.05, f:6000, q:.6, type:"highpass" }); noise(AU.mus, t + beat * .66, .08, { vol:.03, f:7000, q:.6, type:"highpass" }); }
+    if (M.drums) { if (b === 0 || b === 2) kick(AU.mus, t, .35); if (b === 1 || b === 3) noise(AU.mus, t, .12, { vol:.14, f:1800, q:.8 }); noise(AU.mus, t + beat / 2, .04, { vol:.05, f:8000, q:1, type:"highpass" }); }
+    if (M.ost) { tone(AU.mus, t, ch[0] - 12, beat * .45, { type:"sawtooth", vol:.07, att:.005, rel:.1, cut:500 }); tone(AU.mus, t + beat / 2, ch[0] - 12, beat * .45, { type:"sawtooth", vol:.06, att:.005, rel:.1, cut:500 }); }
+    AU.next += beat; AU.step++;
+  }
+}
+function setMusic(on){
+  AU.music = !!on; saveAudio(); renderAudio();
+  if (!on) { if (AU.ctx) { AU.mus.gain.cancelScheduledValues(AU.ctx.currentTime); AU.mus.gain.linearRampToValueAtTime(0, AU.ctx.currentTime + .8); } clearInterval(AU.timer); AU.timer = null; return; }
+  if (!actx()) return; updateMusic(true);
+}
+function updateMusic(force){
+  if (!AU.music || !AU.ctx || !T.on) { if (AU.ctx && !T.on) { AU.mus.gain.linearRampToValueAtTime(0, AU.ctx.currentTime + .8); clearInterval(AU.timer); AU.timer = null; } return; }
+  const m = moodFor(); if (m === AU.mood && AU.timer && !force) return;
+  const c = AU.ctx; AU.mood = m; AU.mus.gain.cancelScheduledValues(c.currentTime); AU.mus.gain.setValueAtTime(AU.mus.gain.value, c.currentTime); AU.mus.gain.linearRampToValueAtTime(.55, c.currentTime + 1.5);
+  AU.next = Math.max(AU.next, c.currentTime + .05); AU.step = 0; if (!AU.timer) AU.timer = setInterval(musicTick, 100);
+}
+function renderAudio(){ const m = $("#musicBtn"), f = $("#sfxBtn"); if (m) { m.setAttribute("aria-pressed", String(AU.music)); m.textContent = AU.music ? "Music on" : "Music off"; } if (f) { f.setAttribute("aria-pressed", String(AU.sfx)); f.textContent = AU.sfx ? "Sounds on" : "Sounds off"; } }
 
 /* ---------- platform ---------- */
 let SAMPLE = null, DB = null, USER = null, ROOM = null, TTS = null, UID = null;
@@ -662,9 +819,20 @@ const ready = (async () => {
   if (USER) { try { UID = await USER.id(); } catch {} }
   const AIN = { anthropic:"Claude", openai:"GPT", gemini:"Gemini" };
   const cc = window.lhCouncil; if (cc) document.querySelectorAll("[data-seat]").forEach(n => n.textContent = AIN[cc[n.dataset.seat]] || "");
-  if (TTS) { $("#voiceRow").hidden = false; document.querySelectorAll(".say .play").forEach(b => b.hidden = false); }
+  if (TTS) { $("#voiceRow").hidden = false; $("#narrRow").hidden = false; document.querySelectorAll(".say .play").forEach(b => b.hidden = false); setupVoices(); }
 })();
 
+function setupVoices(){
+  const pref = (() => { try { return JSON.parse(localStorage.getItem("lh.voicecfg") || "{}"); } catch { return {}; } })();
+  $("#autoVoice").checked = !!pref.dialog; $("#autoNarr").checked = !!pref.narr;
+  const save = () => { try { localStorage.setItem("lh.voicecfg", JSON.stringify({ dialog:$("#autoVoice").checked, narr:$("#autoNarr").checked })); } catch {} };
+  $("#autoVoice").addEventListener("change", save); $("#autoNarr").addEventListener("change", save);
+  if (!("speechSynthesis" in window) || !PAINT) return;
+  const sel = $("#voicePick");
+  const fill = () => { const vs = speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang)); if (!vs.length) return; sel.textContent = ""; const cur = localStorage.getItem("lh.voice") || ""; const d = el("option",null,"Default"); d.value = ""; sel.append(d); vs.forEach(v => { const o = el("option",null,`${v.name} (${v.lang})`); o.value = v.voiceURI; if (v.voiceURI === cur) o.selected = true; sel.append(o); }); $("#voicePickRow").hidden = false; };
+  fill(); speechSynthesis.addEventListener?.("voiceschanged", fill);
+  sel.addEventListener("change", () => { try { localStorage.setItem("lh.voice", sel.value); } catch {} if (TTS) TTS.speak("The tale continues.", { voice:PAINT ? "narrator" : "rounded" }).catch(() => {}); });
+}
 /* ---------- data ---------- */
 let chars = [], myWorlds = [];
 const colPath = () => "data/users/" + UID;
@@ -673,16 +841,19 @@ async function loadData(){
   if (DB && UID) {
     try { const snap = await DB.collection(colPath()).get(); const all = snap.docs.map(x => ({ id:x.id, ...x.data() })); chars = all.filter(x => x.kind !== "world"); myWorlds = all.filter(x => x.kind === "world"); $("#storeNote").textContent = "Characters and worlds are saved to your account, private to you."; rerender(); return; } catch {}
   }
+  const synced = await cloudSync();
   chars = store.get("lh.chars", []); myWorlds = store.get("lh.worlds", []);
-  $("#storeNote").textContent = "Characters and worlds are saved in this browser.";
+  $("#storeNote").textContent = synced ? "Characters, worlds and saved games are backed up to the cloud with your player code." : "Characters and worlds are saved in this browser.";
+  renderCloud();
   rerender(); paintMissing();
 }
 async function putDoc(obj, list){ if (DB && UID) { try { const { id, ...body } = obj; await DB.collection(colPath()).doc(id).set(body); return; } catch {} } store.set(list === "w" ? "lh.worlds" : "lh.chars", list === "w" ? myWorlds : chars); }
 async function delDoc(id, list){ if (DB && UID) { try { await DB.collection(colPath()).doc(id).delete(); return; } catch {} } store.set(list === "w" ? "lh.worlds" : "lh.chars", list === "w" ? myWorlds : chars); }
-async function saveChar(c){ chars = [...chars.filter(x => x.id !== c.id), c]; await putDoc(c, "c"); }
-async function removeChar(id){ chars = chars.filter(x => x.id !== id); await delDoc(id, "c"); rerender(); }
-async function saveWorld(w){ myWorlds = [...myWorlds.filter(x => x.id !== w.id), w]; await putDoc(w, "w"); }
-async function removeWorld(id){ myWorlds = myWorlds.filter(x => x.id !== id); await delDoc(id, "w"); rerender(); }
+async function saveChar(c){ c.updated = Date.now(); chars = [...chars.filter(x => x.id !== c.id), c]; await putDoc(c, "c"); }
+function markGone(id){ const g = store.get("lh.gone", []); if (!g.includes(id)) { g.push(id); store.set("lh.gone", g.slice(-500)); } }
+async function removeChar(id){ markGone(id); chars = chars.filter(x => x.id !== id); await delDoc(id, "c"); rerender(); }
+async function saveWorld(w){ w.updated = Date.now(); myWorlds = [...myWorlds.filter(x => x.id !== w.id), w]; await putDoc(w, "w"); }
+async function removeWorld(id){ markGone(id); myWorlds = myWorlds.filter(x => x.id !== id); await delDoc(id, "w"); rerender(); }
 const allWorlds = () => [...CAMPAIGNS.filter(c => c.id !== "custom"), ...myWorlds];
 const worldById = id => allWorlds().find(w => w.id === id);
 /* painted portraits: a free image model paints the character from their description (website only; the Claude page keeps the drawing) */
@@ -915,7 +1086,31 @@ function buildCreator(host, av, onChange){
 }
 function seeded(seed){ let s = (seed >>> 0) || 1; return () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; }
 function npcAvatar(name){ const r = seeded(hashStr(String(name).toLowerCase())); const p = a => a[Math.floor(r() * a.length)]; return { skin:p(AV.skin), hairC:p(AV.hairC), eyeC:p(AV.eyeC), outC:p(AV.outC), bg:p(AV.bg), face:p(AV.face), eyes:p(AV.eyes), brows:p(AV.brows), hair:p(AV.hair), facial:r() < .65 ? "none" : p(AV.facial), marks:r() < .7 ? "none" : p(AV.marks), build:p(AV.build), outfit:p(AV.outfit), extra:r() < .8 ? "none" : p(AV.extra) }; }
-function faceEl(name, avatar, portrait){ const f = el("div","face"); if (portrait) { const i = el("img"); i.src = portrait; i.alt = ""; f.append(i); } else f.innerHTML = avatarSVG(avatar || npcAvatar(name), true); return f; }
+/* realistic faces for the people you meet (website only; painted one at a time, kept in this browser) */
+const npcKey = name => ((T.camp?.id || "x") + ":" + String(name).toLowerCase().trim()).slice(0, 90);
+const npcPics = (() => { try { return JSON.parse(localStorage.getItem("lh.npcpics") || "{}"); } catch { return {}; } })();
+const npcQueue = []; let npcBusy = false, npcLast = 0;
+function queueNpcFaces(){
+  if (!PAINT || !T.camp) return;
+  for (const n of (T.chron?.npcs || []).slice(0, 8)) { const k = npcKey(n.name); if (!npcPics[k] && !npcQueue.some(q => q.k === k)) npcQueue.push({ k, name:n.name, note:n.note || "" }); }
+  pumpNpc();
+}
+async function pumpNpc(){
+  if (npcBusy || !npcQueue.length || paintBusy) { if (npcQueue.length && !npcBusy) setTimeout(pumpNpc, 15000); return; }
+  const wait = 47000 - (Date.now() - npcLast); if (wait > 0) { setTimeout(pumpNpc, wait); return; }
+  npcBusy = true; const job = npcQueue.shift();
+  try {
+    const raw = `${job.name}${job.note ? ", " + job.note : ""}`;
+    const pic = await paintPortrait({ id:"npc:" + job.k, world:T.camp?.id, pronouns:"", look:raw, lookPrompt:raw, lookFrom:raw, cls:null }, null, 1);
+    const small = await new Promise(res => { const i = new Image(); i.onload = () => { const cv = document.createElement("canvas"); cv.width = 160; cv.height = 200; cv.getContext("2d").drawImage(i, 0, 0, 160, 200); res(cv.toDataURL("image/jpeg", .8)); }; i.onerror = () => res(pic); i.src = pic; });
+    npcPics[job.k] = small; const keys = Object.keys(npcPics); if (keys.length > 60) delete npcPics[keys[0]];
+    try { localStorage.setItem("lh.npcpics", JSON.stringify(npcPics)); } catch {}
+    document.querySelectorAll(`.face[data-npc="${CSS.escape(job.k)}"]`).forEach(f => { f.textContent = ""; const i = el("img"); i.src = small; i.alt = ""; f.append(i); });
+  } catch { if (!job.tries) { job.tries = 1; npcQueue.push(job); } }
+  npcLast = Date.now(); npcBusy = false; if (npcQueue.length) setTimeout(pumpNpc, 47000);
+}
+function faceEl(name, avatar, portrait){ const f = el("div","face");
+  if (!portrait && !avatar && PAINT && T.camp) { const k = npcKey(name); f.dataset.npc = k; if (npcPics[k]) portrait = npcPics[k]; } if (portrait) { const i = el("img"); i.src = portrait; i.alt = ""; f.append(i); } else f.innerHTML = avatarSVG(avatar || npcAvatar(name), true); return f; }
 function whoFace(name){
   if (T.me && name === T.me.name) return faceEl(name, T.me.avatar, T.me.portrait);
   const peer = (T.peers || []).find(p => p.presence?.char?.name === name);
@@ -926,6 +1121,8 @@ function whoFace(name){
 const VIEWS = ["home","worlds","characters","create","play","guide"];
 const curView = () => { const v = (location.hash || "#home").slice(1); return VIEWS.includes(v) ? v : "home"; };
 function route(){
+  const jm = location.hash.match(/^#join-([A-Za-z0-9]{5})$/);
+  if (jm) { const code = jm[1].toUpperCase(); history.replaceState(null, "", "#characters"); setTimeout(() => { const i = $("#joinCode"); if (i) { i.value = code; $("#joinMsg").textContent = chars.length ? `Invite to table ${code}. Pick who you'll play as, then tap Join table.` : `Invite to table ${code}. Make a character first (any world), then come back here and tap Join table.`; i.scrollIntoView({ block:"center" }); } }, 300); try { localStorage.setItem("lh.invite", code); } catch {} }
   let v = curView();
   if (v === "play" && !T.on) { v = "worlds"; history.replaceState(null, "", "#worlds"); }
   if (v === "create" && !WZ.world && !WZ.char) { v = "worlds"; history.replaceState(null, "", "#worlds"); }
@@ -1057,7 +1254,36 @@ function askSheet(title, label, placeholder, cta, cb){
 
 /* ---------- characters page ---------- */
 function charMeta(c){ const w = worldById(c.world); return `${c.cls?.name || "Adventurer"} · ${w ? w.name : "Any world"}`; }
+function renderCloud(){
+  const box = $("#cloudBox"); if (!box) return;
+  if (!cloudOn || !window.lhCloud) { box.hidden = true; return; }
+  box.hidden = false; $("#cloudCode").textContent = lhCloud.code();
+}
+$("#cloudCopy").addEventListener("click", async () => { const c = window.lhCloud ? lhCloud.code() : ""; try { await navigator.clipboard.writeText(c); cloudStatus("Copied. Save it somewhere safe."); } catch { const r = document.createRange(); r.selectNodeContents($("#cloudCode")); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); cloudStatus("Selected. Press Ctrl+C to copy."); } });
+$("#cloudLoad").addEventListener("click", async () => {
+  const v = $("#cloudIn").value; if (!window.lhCloud) return;
+  if (!lhCloud.setCode(v)) { cloudStatus("That doesn't look like a player code."); return; }
+  cloudStatus("Loading your saves..."); $("#cloudIn").value = "";
+  try { localStorage.setItem("lh.ts", "{}"); } catch {}
+  await loadData(); cloudStatus(`Loaded. You have ${chars.length} character${chars.length === 1 ? "" : "s"} on this code.`);
+});
+function renderRecent(){
+  const box = $("#recentTables"); if (!box) return; box.textContent = "";
+  const list = store.get("lh.tables", []).filter(t => chars.some(c => c.id === t.charId) && (!t.host || store.get("lh.host." + t.code, null)));
+  if (!list.length) { box.hidden = true; return; }
+  box.append(el("p","label","Your recent tables"));
+  for (const t of list.slice(0, 4)) {
+    const r = el("div","rt"); const c = chars.find(x => x.id === t.charId);
+    const info = el("div"); info.append(el("div",null,`${t.worldName || "Shared table"} · ${c.name}`), el("div","muted",t.host ? "You host this table" : "A friend's table"));
+    const b = el("button","btn small primary", t.host ? "Reopen table" : "Rejoin");
+    b.addEventListener("click", async () => { b.disabled = true; const w = worldById(t.world) || { id:t.world || "x", name:t.worldName || "Shared table", premise:"" }; const ok = await startGame(t.host ? "host" : "join", c, w, t.code); if (!ok) { b.disabled = false; toast(lastJoinErr || "Couldn't open that table."); } });
+    r.append(el("span","code",t.code), info, b); box.append(r);
+  }
+  box.hidden = false;
+}
 function renderChars(){
+  renderRecent();
+  try { const inv = localStorage.getItem("lh.invite"); if (inv && !$("#joinCode").value) $("#joinCode").value = inv; } catch {}
   const g = $("#charGrid"); g.textContent = "";
   const js = $("#joinChar"); js.textContent = "";
   if (!chars.length) { { const em = el("div","empty"); em.append(el("p",null,"No characters yet. Pick a world to make your first one.")); const gb = el("button","btn primary","Choose a world"); gb.style.marginTop = "12px"; gb.addEventListener("click", () => go("worlds")); em.append(gb); g.append(em); } const o = el("option",null,"Make a character first"); o.value = ""; js.append(o); }
@@ -1309,12 +1535,16 @@ async function loadWorldClasses(w){
 function rollStats(){ const o = {}; for (const k of STATS) { const r = [d(6),d(6),d(6),d(6)].sort((a,b)=>a-b); o[k] = r[1]+r[2]+r[3]; } return o; }
 
 /* ---------- table state ---------- */
-const T = { on:false, mode:"solo", code:null, R:null, isHost:true, me:null, camp:null, log:[], round:0, gmTurns:0, chron:{ summary:"", quests:[], npcs:[], fate:0 }, notes:[], done:[], offers:[], pending:[], lastActs:null, lastOpening:false, busy:false, timer:null, roll:null, peers:[], synced:false, scene:"", acted:new Set(), roundDeadline:0, chatMode:false };
+const T = { on:false, mode:"solo", code:null, R:null, isHost:true, me:null, camp:null, log:[], round:0, gmTurns:0, chron:{ summary:"", quests:[], npcs:[], fate:0 }, notes:[], done:[], offers:[], pending:[], lastActs:null, lastOpening:false, busy:false, timer:null, roll:null, peers:[], synced:false, scene:"", acted:new Set(), roundDeadline:0, chatMode:false, combat:{ on:false, foes:[], order:[] } };
 const soloKey = (w, c) => "lh.solo." + w + "." + c;
 let lastJoinErr = "";
 function prepMe(c){ c = JSON.parse(JSON.stringify(c)); c.hpMax = c.hp || 8; c.hpCur = c.hpMax; c.level = 1; c.xp = 0; c.gold = 10; c.inv = (c.cls?.kit || []).map(k => ({ ...k, eq: k.cat === "Weapon" || k.cat === "Armor" })); return c; }
 function brief(c){ return { name:c.name, cls:c.cls?.name, pron:c.pronouns, look:((c.avatar ? describeAvatar(c.avatar) + ". " : "") + (c.look || "")).slice(0,300), origin:(c.origin||"").slice(0,120), hp:`${c.hpCur}/${c.hpMax}`, lvl:c.level, gold:c.gold, inv:(c.inv||[]).slice(0,8).map(i => i.name + (i.eq ? "*" : "")), hook:(c.story?.hook||"").slice(0,160), stats:c.stats, av:c.portrait ? null : (c.avatar || null), abil:(c.cls?.abilities||[]).map(a => a.name) }; }
-function saveSolo(){ if (T.mode !== "solo" || !T.me) return; store.set(soloKey(T.camp.id, T.me.id), { log:T.log.slice(-80), round:T.round, chron:T.chron, notes:T.notes, done:T.done, offers:T.offers, gmTurns:T.gmTurns, scene:T.scene, me:{ hpCur:T.me.hpCur, hpMax:T.me.hpMax, xp:T.me.xp, level:T.me.level, gold:T.me.gold, inv:T.me.inv } }); }
+function snapState(){ return { combat:T.combat, log:T.log.slice(-80), round:T.round, chron:T.chron, notes:T.notes, done:T.done, offers:T.offers, gmTurns:T.gmTurns, scene:T.scene, me:{ hpCur:T.me.hpCur, hpMax:T.me.hpMax, xp:T.me.xp, level:T.me.level, gold:T.me.gold, inv:T.me.inv } }; }
+function rememberTable(code, host){ const list = store.get("lh.tables", []).filter(t => !(t.code === code && t.host === host)); list.unshift({ code, host, world:T.camp?.id || null, worldName:T.camp?.name || "", charId:T.me?.id, charName:T.me?.name, ts:Date.now() }); store.set("lh.tables", list.slice(0, 6)); }
+let hostSaveT = null;
+function saveHost(){ if (T.mode !== "multi" || !T.isHost || !T.code || !T.me || !T.camp) return; clearTimeout(hostSaveT); hostSaveT = setTimeout(() => store.set("lh.host." + T.code, { ...snapState(), code:T.code, camp:T.camp, charId:T.me.id, ts:Date.now() }), 800); }
+function saveSolo(){ if (T.mode === "multi") { saveHost(); return; } if (T.mode !== "solo" || !T.me) return; store.set(soloKey(T.camp.id, T.me.id), { combat:T.combat, log:T.log.slice(-80), round:T.round, chron:T.chron, notes:T.notes, done:T.done, offers:T.offers, gmTurns:T.gmTurns, scene:T.scene, me:{ hpCur:T.me.hpCur, hpMax:T.me.hpMax, xp:T.me.xp, level:T.me.level, gold:T.me.gold, inv:T.me.inv } }); }
 const xpNeed = () => 10 * (T.me.level || 1);
 const isAnime = w => w && (w.cat === "anime" || w.anime);
 
@@ -1324,14 +1554,24 @@ async function startGame(mode, c, w, code){
   if (mode === "join") {
     T.mode = "multi"; T.isHost = false; T.camp = null;
     try { await openRoom(code, false); } catch (e) { lastJoinErr = e.code === "full" ? `That table is full (${MAX_TABLE} players max).` : e.code === "noroom" ? "Shared tables aren't switched on for this site yet." : "Couldn't join that table. Check the code."; $("#joinMsg").textContent = lastJoinErr; resetT(); return false; }
-    showTable(); addEntry({ kind:"sys", text:"Waiting for the host to share the story..." }); return true;
+    showTable(); addEntry({ kind:"sys", text:"Waiting for the host to share the story..." }); rememberTable(code, false); return true;
   }
   T.camp = { id:w.id, name:w.name, premise:w.premise, anime:isAnime(w), crime:!!w.crime, nomagic:!!w.nomagic };
   if (mode === "host") {
     T.mode = "multi";
-    const code2 = Array.from({length:5}, () => "ABCDEFGHJKMNPQRSTUVWXYZ23456789"[Math.floor(Math.random()*31)]).join("");
+    const prev = code ? store.get("lh.host." + code, null) : null;
+    const code2 = prev ? code : Array.from({length:5}, () => "ABCDEFGHJKMNPQRSTUVWXYZ23456789"[Math.floor(Math.random()*31)]).join("");
+    if (prev) {
+      try { await openRoom(code2, true); } catch (e) { toast("Couldn't reopen the table."); resetT(); return false; }
+      T.round = prev.round || 0; T.gmTurns = prev.gmTurns || 0; T.chron = sanitizeChron(prev.chron); T.notes = prev.notes || []; T.done = prev.done || []; T.offers = prev.offers || []; T.scene = prev.scene || "";
+      if (prev.me) Object.assign(T.me, prev.me); if (prev.combat) setCombat(prev.combat, false);
+      showTable(); (prev.log || []).forEach(e => addEntry(e, false));
+      addEntry({ kind:"recap" }, false); queueNpcFaces();
+      addEntry({ kind:"sys", text:`Table ${code2} is open again. Friends with the code rejoin where you left off.` }, false);
+      renderSide(); rememberTable(code2, true); sendSync(true); return true;
+    }
     try { await openRoom(code2, true); } catch (e) { toast(e.code === "noroom" ? "Shared tables aren't switched on for this site yet." : "Couldn't open the table."); resetT(); return false; }
-    showTable(); wake(); addEntry({ kind:"sys", text:`Table open. Share code ${code2} with your party.` }); runGM(true); return true;
+    showTable(); wake(); addEntry({ kind:"sys", text:`Table open. Share code ${code2} with your party.` }); rememberTable(code2, true); runGM(true); return true;
   }
   T.mode = "solo"; store.set("lh.last", { world:w.id, charId:c.id });
   showTable();
@@ -1339,8 +1579,8 @@ async function startGame(mode, c, w, code){
   if (saved && saved.log?.length) {
     T.round = saved.round || 0; T.gmTurns = saved.gmTurns || 0; T.chron = sanitizeChron(saved.chron); T.notes = saved.notes || []; T.done = saved.done || []; T.offers = saved.offers || []; T.scene = saved.scene || "";
     if (saved.me) Object.assign(T.me, saved.me);
-    saved.log.forEach(e => addEntry(e, false));
-    addEntry({ kind:"sys", text:"Welcome back. Your story picks up where you left it." }, false);
+    saved.log.forEach(e => addEntry(e, false)); if (saved.combat) setCombat(saved.combat, false);
+    addEntry({ kind:"recap" }, false); queueNpcFaces();
     renderSide(); return true;
   }
   wake(); runGM(true); return true;
@@ -1352,11 +1592,13 @@ function showTable(){
   const cb = $("#codeBox"); cb.textContent = ""; if (T.code) cb.append(el("span","label","Table code "), el("div","code",T.code));
   $("#log").textContent = ""; setRailTab("char"); setPane("rels"); renderSide(); renderCmds();
   $("#modeBar").hidden = T.mode === "solo"; setChatMode(false); renderWait();
+  renderAudio(); if (AU.music && actx()) { AU.mood = null; updateMusic(true); }
+  $("#shareBtn").hidden = !(T.mode === "multi" && T.code);
 }
 function resetT(){
   if (T.R) { try { T.R.leave(); } catch {} }
   Object.assign(T, { on:false, mode:"solo", code:null, R:null, isHost:true, me:null, camp:null, log:[], round:0, gmTurns:0, chron:{summary:"",quests:[],npcs:[],fate:0}, notes:[], done:[], offers:[], pending:[], lastActs:null, busy:false, roll:null, peers:[], synced:false, scene:"" });
-  setChoices([]); setRollAsk(null); seenRels.clear(); openRels.clear(); T.acted = new Set(); T.roundDeadline = 0; setChatMode(false); $("#newMsg").hidden = true;
+  setChoices([]); setRollAsk(null); seenRels.clear(); openRels.clear(); T.acted = new Set(); T.roundDeadline = 0; T.hostSeen = undefined; T.combat = { on:false, foes:[], order:[] }; renderCombat(); setChatMode(false); $("#newMsg").hidden = true;
 }
 function wake(){
   const h = $("#wakeHost"); h.textContent = "";
@@ -1379,6 +1621,13 @@ function rerenderLog(){ $("#log").textContent = ""; T.log.forEach(e => renderEnt
 function renderEntry(e){
   const box = $("#log"); let n;
   if (e.kind === "gm") { n = el("div","entry gm"); const t = el("div","txt"); fmtTale(t, e.text); n.append(t); if (e.live) setTimeout(() => speakLines(n), 50); }
+  else if (e.kind === "recap") {
+    n = el("div","entry recap"); n.append(el("span","label","Previously..."));
+    n.append(el("p",null, T.chron.summary || "Your story is still young. Here's where you left it:"));
+    const q = (T.chron.quests || []).slice(0, 3); if (q.length) { const ul = el("ul"); q.forEach(x => ul.append(el("li",null, x.title + (x.goal ? ": " + x.goal : "")))); n.append(el("span","label","Open quests"), ul); }
+    const last = [...T.log].reverse().find(x => x.kind === "gm"); if (last) n.append(el("p","muted","Last scene: " + stripTags(last.text).replace(/\*\*|__/g, "").slice(0, 220) + "..."));
+    const box = $("#log"); box.append(n); n.scrollIntoView({ block:"nearest" }); return n;
+  }
   else if (e.kind === "chat") { n = el("div","entry chat" + (T.me && e.who === T.me.name ? " mine" : "")); n.append(el("span","who",e.who), el("span",null,e.text)); }
   else if (e.kind === "act") { n = el("div","entry actrow"); const b = el("div","act"); b.append(el("div","who",e.who), el("div",null,e.text)); const who = whoFace(e.who); n.append(b, who); }
   else if (e.kind === "npc") { n = el("div","entry"); n.append(sayCard(e.who, e.text)); if (e.live) setTimeout(() => speakLines(n), 50); }
@@ -1421,7 +1670,9 @@ const VOICES = ["rounded","glassy","airy","buttery"];
 let speakingBtn = null;
 function sayCard(name, line){
   const w = el("div","say"); const h = hashStr(name);
-  const av = el("div","av"); av.innerHTML = avatarSVG(npcAvatar(name), true);
+  const av = el("div","av"); const pk = PAINT && T.camp ? npcKey(name) : null;
+  if (pk && npcPics[pk]) { const i = el("img"); i.src = npcPics[pk]; i.alt = ""; av.append(i); } else av.innerHTML = avatarSVG(npcAvatar(name), true);
+  if (pk) { av.classList.add("face"); av.dataset.npc = pk; }
   const t = el("div"); t.append(el("div","sn",name), el("div","sl",line));
   if (T.on) {
     const rb = el("button","rep","Reply"); rb.type = "button";
@@ -1446,8 +1697,11 @@ async function speakLine(btn){
   btn.classList.remove("on"); if (speakingBtn === btn) speakingBtn = null;
 }
 async function speakLines(node){
-  if (!TTS || !$("#autoVoice").checked) return;
-  const lines = [...node.querySelectorAll(".say .play")].map(b => ({ text:b.dataset.line, voice:b.dataset.voice }));
+  if (!TTS) return;
+  const narr = $("#autoNarr").checked && node.classList.contains("gm");
+  if (!$("#autoVoice").checked && !narr) return;
+  let lines = [...node.querySelectorAll(".say .play")].map(b => ({ text:b.dataset.line, voice:b.dataset.voice }));
+  if (narr) { const t = node.querySelector(".txt"); const parts = []; if (t) for (const ch of t.children) { const p = ch.querySelector?.(".say .play"); if (p) parts.push({ text:p.dataset.line, voice:p.dataset.voice }); else if (ch.textContent.trim() && !ch.classList.contains("say")) parts.push({ text:ch.textContent.trim(), voice:PAINT ? "narrator" : "rounded" }); } lines = parts.length ? parts : lines; }
   if (lines.length) { try { await TTS.speak(lines); } catch {} }
 }
 
@@ -1601,6 +1855,7 @@ function rewriteLast(){
 
 /* ---------- fx ---------- */
 function rollFx(n, sides, caption, kind){
+  sfx("dice");
   const w = el("div","rollfx" + (kind ? " " + kind : ""));
   const NS = "http://www.w3.org/2000/svg", svg = document.createElementNS(NS,"svg"); svg.setAttribute("viewBox","0 0 200 200");
   const pg = document.createElementNS(NS,"polygon"); pg.setAttribute("points", sides === 20 ? "100,8 182,54 182,146 100,192 18,146 18,54" : "30,30 170,30 170,170 30,170");
@@ -1651,13 +1906,13 @@ function applyEffects(list){
     const showFx = !$("#v-play").hidden;
     if (f.k === "HP") {
       const n = Math.max(-60, Math.min(60, parseInt(f.n) || 0)); const before = T.me.hpCur; T.me.hpCur = Math.max(0, Math.min(T.me.hpMax, T.me.hpCur + n));
-      if (T.me.hpCur !== before && showFx) { pulseClass($("#portrait"), n < 0 ? "hit" : "heal", 650); floatAt($("#portrait"), (n > 0 ? "+" : "") + (T.me.hpCur - before) + " HP", n < 0 ? "#ff6b5e" : "#6fe0a8"); }
+      if (T.me.hpCur !== before && showFx) { if (n < 0) sfx("hit"); pulseClass($("#portrait"), n < 0 ? "hit" : "heal", 650); floatAt($("#portrait"), (n > 0 ? "+" : "") + (T.me.hpCur - before) + " HP", n < 0 ? "#ff6b5e" : "#6fe0a8"); }
       if (T.me.hpCur === 0) addEntry({ kind:"sys", text:`${T.me.name} falls, barely breathing.` });
     } else if (f.k === "XP") {
       const n = Math.max(0, Math.min(50, parseInt(f.n) || 0)); if (!n) continue; T.me.xp += n; if (showFx) floatAt($("#xpFill").parentElement, `+${n} XP`, "#6fe0a8");
-      while (T.me.xp >= xpNeed()) { T.me.xp -= xpNeed(); T.me.level++; const gain = Math.max(1, Math.ceil((T.me.cls?.hitDie || 8) / 2) + 1 + mod(T.me.stats?.CON)); T.me.hpMax += gain; T.me.hpCur = T.me.hpMax; bannerFx("Level " + T.me.level); pulseClass($("#portrait"), "lvl", 2400); addEntry({ kind:"sys", text:`${T.me.name} reaches level ${T.me.level}. Max HP +${gain}.` }); }
+      while (T.me.xp >= xpNeed()) { T.me.xp -= xpNeed(); T.me.level++; const gain = Math.max(1, Math.ceil((T.me.cls?.hitDie || 8) / 2) + 1 + mod(T.me.stats?.CON)); T.me.hpMax += gain; T.me.hpCur = T.me.hpMax; bannerFx("Level " + T.me.level); sfx("level"); pulseClass($("#portrait"), "lvl", 2400); addEntry({ kind:"sys", text:`${T.me.name} reaches level ${T.me.level}. Max HP +${gain}.` }); }
     } else if (f.k === "GOLD") {
-      const n = Math.max(-9999, Math.min(9999, parseInt(f.n) || 0)); T.me.gold = Math.max(0, T.me.gold + n); if (showFx && n) floatAt($("#portrait"), `${n > 0 ? "+" : ""}${n} gold`, "#f2c14e");
+      const n = Math.max(-9999, Math.min(9999, parseInt(f.n) || 0)); T.me.gold = Math.max(0, T.me.gold + n); if (showFx && n) { floatAt($("#portrait"), `${n > 0 ? "+" : ""}${n} gold`, "#f2c14e"); if (n > 0) sfx("coin"); }
     } else if (f.k === "ITEM") {
       const name = String(f.item || "").slice(0,40); if (!name) continue;
       if (f.sign === "+") { T.me.inv.push({ name, cat: CATS.includes(f.cat) ? f.cat : "Item", eq:false }); if (showFx) floatAt($("#portrait"), "+ " + name, "#7cc7d9"); }
@@ -1665,6 +1920,49 @@ function applyEffects(list){
     }
   }
   if (changed) { renderSide(); syncMe(); }
+}
+function parseCombat(text){
+  const c = JSON.parse(JSON.stringify(T.combat || { on:false, foes:[], order:[] }));
+  const find = n => { const k = n.toLowerCase(); return c.foes.find(f => f.name.toLowerCase() === k) || c.foes.find(f => f.name.toLowerCase().startsWith(k) || k.startsWith(f.name.toLowerCase())); };
+  if (/\[\[COMBAT:\s*start\s*\]\]/i.test(text)) { c.on = true; c.foes = []; c.order = []; }
+  for (const m of text.matchAll(/\[\[FOE:\s*([^|\]]+?)\s*\|\s*(\d+)\s*\/\s*(\d+)\s*(?:\|\s*([^\]]*))?\]\]/gi)) {
+    const name = m[1].trim().slice(0,40), max = Math.max(1, Math.min(999, +m[3])), hp = Math.max(0, Math.min(max, +m[2]));
+    const f = find(name); if (f) Object.assign(f, { hp, max, note:(m[4] || f.note || "").trim().slice(0,60), down: hp <= 0 }); else c.foes.push({ name, hp, max, note:(m[4] || "").trim().slice(0,60), down: hp <= 0 });
+    c.on = true;
+  }
+  for (const m of text.matchAll(/\[\[FOE:\s*([^|\]]+?)\s*([+-]\d+)\s*\]\]/g)) { const f = find(m[1].trim()); if (f) { f.hp = Math.max(0, Math.min(f.max, f.hp + +m[2])); f.down = f.hp <= 0; f.hit = +m[2]; } }
+  for (const m of text.matchAll(/\[\[FOE:\s*([^|\]]+?)\s*\|\s*(defeated|dead|killed|fled|surrender\w*|down|gone)\s*\]\]/gi)) { const f = find(m[1].trim()); if (f) { f.down = true; f.hp = 0; } }
+  const om = text.match(/\[\[ORDER:\s*([^\]]+)\]\]/i); if (om) c.order = om[1].split(/,|>|\|/).map(x => x.trim().slice(0,40)).filter(Boolean).slice(0,10);
+  if (/\[\[COMBAT:\s*end\s*\]\]/i.test(text)) c.on = false;
+  if (c.on && c.foes.length && c.foes.every(f => f.down)) c.on = false;
+  if (!c.on && !/\[\[COMBAT|\[\[FOE/i.test(text)) return T.combat?.on ? c : (T.combat || c);
+  c.foes = c.foes.slice(0, 8); return c;
+}
+function setCombat(c, fresh){
+  const was = T.combat?.on; const prev = new Map((T.combat?.foes || []).map(f => [f.name, f.hp]));
+  T.combat = c && typeof c === "object" ? { on:!!c.on, foes:(Array.isArray(c.foes) ? c.foes : []).slice(0,8).map(f => ({ name:String(f.name||"Enemy").slice(0,40), hp:Math.max(0,+f.hp||0), max:Math.max(1,+f.max||1), note:String(f.note||"").slice(0,60), down:!!f.down })), order:(Array.isArray(c.order) ? c.order : []).map(String).slice(0,10) } : { on:false, foes:[], order:[] };
+  renderCombat();
+  if (!fresh) return;
+  if (!was && T.combat.on) { bannerFx("Fight!"); sfx("fight"); }
+  if (was && !T.combat.on && T.combat.foes.length) { bannerFx(T.combat.foes.every(f => f.down) ? "Victory" : "The fight ends"); sfx("win"); }
+  for (const f of T.combat.foes) { const p = prev.get(f.name); if (p != null && p !== f.hp) { const node = document.querySelector(`.foe[data-n="${CSS.escape(f.name)}"]`); if (node) { floatAt(node, (f.hp - p > 0 ? "+" : "") + (f.hp - p), f.hp < p ? "#ff6b5b" : "#62d48a"); pulseClass(node, "hitfx", 500); } if (f.hp < p) sfx("hit"); } }
+}
+function renderCombat(){
+  const box = $("#combat"); if (!box) return; box.textContent = "";
+  const c = T.combat; if (!c || !c.on || !c.foes.length) { box.hidden = true; return; }
+  box.hidden = false;
+  const head = el("div","chead"); head.append(el("span","label","Fight"), el("span","muted",`${c.foes.filter(f => !f.down).length} ${c.foes.filter(f => !f.down).length === 1 ? "enemy" : "enemies"} left`)); box.append(head);
+  if (c.order.length) { const o = el("div","order"); c.order.forEach((n, i) => { const isFoe = c.foes.some(f => f.name.toLowerCase() === n.toLowerCase()); o.append(el("span","oc" + (isFoe ? " foe" : ""), n)); if (i < c.order.length - 1) o.append(el("span","arr","›")); }); box.append(o); }
+  const g = el("div","foes");
+  for (const f of c.foes) {
+    const n = el("div","foe" + (f.down ? " down" : "")); n.dataset.n = f.name;
+    const top = el("div","ft"); top.append(el("b",null,f.name), el("span","fhp", f.down ? "Defeated" : `${f.hp}/${f.max}`)); n.append(top);
+    const bar = el("div","fbar"); const fill = el("i"); fill.style.width = Math.round(100 * f.hp / f.max) + "%"; bar.append(fill); n.append(bar);
+    if (f.note) n.append(el("div","fnote",f.note));
+    if (!f.down) { const a = el("button","btn small","Attack"); a.addEventListener("click", () => { $("#actIn").value = `I attack ${f.name}.`; $("#actIn").focus(); }); n.append(a); }
+    g.append(n);
+  }
+  box.append(g);
 }
 function parseEffects(text){
   const out = [];
@@ -1738,10 +2036,12 @@ function applyLog(x){
     setChoices(Array.isArray(x.choices) ? x.choices.map(String) : []);
     setRollAsk(x.roll && STATS.includes(x.roll.stat) ? { stat:x.roll.stat, dc:+x.roll.dc||12, why:String(x.roll.why||"").slice(0,120) } : null);
     if (!x.replay) applyEffects(x.effects);
+    if (x.combat) setCombat(x.combat, !x.replay);
+    if (!x.replay) { sfx("msg"); updateMusic(); }
     T.acted.clear(); renderWait();
   }
   else if (x.kind === "npc") addEntry({ kind:"npc", who:String(x.who).slice(0,40), text:String(x.text).slice(0,1200), live:!x.replay });
-  else if (x.kind === "chron") { const f0 = T.chron.fate; T.chron = sanitizeChron(x.chron); if (T.chron.fate !== f0) pulseClass($(".fate"), "pulse", 1000); handleCompleted(T.chron.completed); }
+  else if (x.kind === "chron") { const f0 = T.chron.fate; T.chron = sanitizeChron(x.chron); if (T.chron.fate !== f0) pulseClass($(".fate"), "pulse", 1000); handleCompleted(T.chron.completed); queueNpcFaces(); }
   else if (x.kind === "rewind") { let i = T.log.length - 1; while (i >= 0 && T.log[i].kind !== "gm") i--; if (i >= 0) { T.log.splice(i, 1); rerenderLog(); } }
   else if (x.kind === "sys") addEntry({ kind:"sys", text:String(x.text).slice(0,200) });
   renderSide();
@@ -1755,15 +2055,20 @@ async function openRoom(code, host){
   R.on("roll", m => local("roll", m.data || {}));
   R.on("log", m => { if (!m.sameTab) applyLog(m.data); });
   R.on("sync", m => {
-    if (m.sameTab || T.isHost || T.synced) return; const x = m.data || {}; T.synced = true;
+    const x = m.data || {}; if (m.sameTab || T.isHost || (T.synced && !x.reopen)) return; T.synced = true;
     T.camp = { id:String(x.camp?.id||"x"), name:String(x.camp?.name||"Shared table").slice(0,60), premise:String(x.camp?.premise||"").slice(0,700), anime:!!x.camp?.anime, crime:!!x.camp?.crime, nomagic:!!x.camp?.nomagic };
-    T.round = +x.round || 0; T.chron = sanitizeChron(x.chron); T.scene = String(x.scene || "").slice(0,80);
+    T.round = +x.round || 0; T.chron = sanitizeChron(x.chron); if (x.combat) setCombat(x.combat, false); T.scene = String(x.scene || "").slice(0,80);
     $("#tblTitle").textContent = T.scene || T.camp.name; T.log = []; $("#log").textContent = "";
     (Array.isArray(x.log) ? x.log : []).forEach(e => applyLog({ ...e, replay:true, choices:[], roll:null }));
-    addEntry({ kind:"sys", text:"You joined the table." }); wake(); renderSide();
+    addEntry({ kind:"sys", text:"You joined the table." }); wake(); renderSide(); rememberTable(T.code, false);
   });
   let firstPeers; const gotPeers = new Promise(r => firstPeers = r);
-  R.onPeers(ch => { T.peers = ch.peers.slice(); firstPeers(); renderParty(); if (T.isHost && ch.joined.some(p => !p.isMe)) sendSync(); });
+  R.onPeers(ch => {
+    const hostNow = ch.peers.some(p => p.presence?.host && !p.sameTab);
+    if (!T.isHost && T.hostSeen && !hostNow && T.on) { T.synced = false; addEntry({ kind:"sys", text:"The host disconnected. Stay here: when they reopen the table, the story continues for everyone. Or tap Run the Game Master to take over." }); }
+    if (!T.isHost && hostNow && T.hostSeen === false) addEntry({ kind:"sys", text:"The host is back." });
+    if (!T.isHost) T.hostSeen = hostNow ? true : (T.hostSeen ? false : T.hostSeen);
+    T.peers = ch.peers.slice(); firstPeers(); renderParty(); if (T.isHost && ch.joined.some(p => !p.isMe)) sendSync(); });
   if (!host) {
     await Promise.race([gotPeers, new Promise(r => setTimeout(r, 1500))]);
     const others = (T.peers || []).filter(p => !p.isMe).length;
@@ -1771,13 +2076,16 @@ async function openRoom(code, host){
   }
   await R.presence({ char: brief(T.me), host });
 }
-function sendSync(){
+function sendSync(reopen){
   if (!T.R || !T.camp) return;
   const tail = T.log.filter(e => ["gm","act","npc"].includes(e.kind)).slice(-6).map(e => ({ kind:e.kind, who:e.who, text:String(e.text).slice(0,360) }));
-  T.R.emit("sync", { camp:{ id:T.camp.id, name:T.camp.name, premise:T.camp.premise.slice(0,450), anime:T.camp.anime, crime:!!T.camp.crime, nomagic:!!T.camp.nomagic }, round:T.round, scene:T.scene, chron:{ summary:T.chron.summary.slice(0,400), quests:T.chron.quests.slice(0,4), npcs:T.chron.npcs.slice(0,5).map(n => ({ name:n.name, attitude:n.attitude })), fate:T.chron.fate }, log:tail }).catch(()=>{});
+  T.R.emit("sync", { combat:T.combat, reopen:!!reopen, camp:{ id:T.camp.id, name:T.camp.name, premise:T.camp.premise.slice(0,450), anime:T.camp.anime, crime:!!T.camp.crime, nomagic:!!T.camp.nomagic }, round:T.round, scene:T.scene, chron:{ summary:T.chron.summary.slice(0,400), quests:T.chron.quests.slice(0,4), npcs:T.chron.npcs.slice(0,5).map(n => ({ name:n.name, attitude:n.attitude })), fate:T.chron.fate }, log:tail }).catch(()=>{});
 }
 $("#claimHost").addEventListener("click", async () => { T.isHost = true; $("#claimHost").hidden = true; if (T.R) await T.R.presence({ host:true }).catch(()=>{}); if (!T.camp) T.camp = { id:"x", name:$("#tblTitle").textContent, premise:"" }; addEntry({ kind:"sys", text:"You run the Game Master now." }); });
-$("#leaveTbl").addEventListener("click", () => { resetT(); go("characters"); });
+$("#leaveTbl").addEventListener("click", () => { resetT(); go("characters"); updateMusic(); });
+$("#musicBtn").addEventListener("click", () => setMusic(!AU.music));
+$("#shareBtn").addEventListener("click", async () => { const link = location.origin + location.pathname + "#join-" + T.code; try { await navigator.clipboard.writeText(link); toast("Invite link copied. Send it to your friends."); } catch { toast("Your invite link: " + link); } });
+$("#sfxBtn").addEventListener("click", () => { AU.sfx = !AU.sfx; saveAudio(); renderAudio(); if (AU.sfx) sfx("coin"); });
 
 /* ---------- acting ---------- */
 function sendAct(text){ text = String(text).trim(); if (!text || !T.on) return; broadcast("act", { who:T.me.name, text }); }
@@ -1833,7 +2141,8 @@ After the narration, on new lines, add machine-read tags (only those that apply)
 [[HP: <character name> -<n>]] or +<n> for healing
 [[XP: <character name or party> +<5-15>]]  (after overcoming a challenge, a clever idea or a great roleplay moment)
 [[GOLD: <character name> +<n>]] or -<n>
-[[ITEM: <character name> | +<item name> | <Weapon|Armor|Trinket|Consumable|Item>]]  or  [[ITEM: <character name> | -<item name>]]`;
+[[ITEM: <character name> | +<item name> | <Weapon|Armor|Trinket|Consumable|Item>]]  or  [[ITEM: <character name> | -<item name>]]
+FIGHTS: when combat breaks out, add [[COMBAT: start]], introduce every enemy with [[FOE: <enemy name> | <hp>/<max hp> | <2-5 word description>]] (minions 4-10 hp, soldiers 12-25, bosses 30-70) and give the turn order with [[ORDER: name, name, ...]] mixing players and enemies. During a fight, attacks need a roll (DC 10-16); on a hit apply damage with [[FOE: <enemy name> -<n>]] (typical hit 4-10, big hit 10-16) and hurt players with [[HP: ...]]. Mark an enemy that dies, flees or surrenders with [[FOE: <enemy name> | defeated]]. When the fight is over add [[COMBAT: end]] and award XP. Keep each combat turn short and punchy.`;
 async function runGM(opening, isRewrite){
   if (!T.isHost || T.busy) return;
   if (!opening && !T.pending.length) return;
@@ -1855,6 +2164,7 @@ COMPLETED QUESTS: ${T.done.join("; ") || "none"}
 KNOWN PEOPLE: ${T.chron.npcs.map(n => `${n.name} (${n.attitude})`).join(", ") || "none yet"}
 ${T.notes.length ? "PLAYER CORRECTIONS (always respect these): " + T.notes.join(" | ") : ""}
 FATE: ${T.chron.fate}   ROUND: ${T.round + 1}
+${T.combat.on ? "ACTIVE FIGHT: " + T.combat.foes.map(f => `${f.name} ${f.down ? "(defeated)" : f.hp + "/" + f.max + " hp"}`).join(", ") + (T.combat.order.length ? ". Turn order: " + T.combat.order.join(" > ") : "") : ""}
 ${isRewrite ? "The players asked you to REWRITE your last turn: take the story in a noticeably different direction this time." : ""}
 
 RECENT TABLE:
@@ -1868,7 +2178,7 @@ ${opening ? "Open the campaign: set a vivid first scene and bring each party mem
     const rm = text.match(/\[\[ROLL:\s*(STR|DEX|CON|INT|WIS|CHA)\s*DC\s*(\d+)\s*\|?([^\]]*)\]\]/i);
     const cm = text.match(/\[\[CHOICES:([^\]]*)\]\]/i);
     const sm = text.match(/\[\[SCENE:\s*([^\]]+)\]\]/i);
-    const entry = { kind:"gm", text:story, choices: cm ? cm[1].split("|").map(s => s.trim()).filter(Boolean).slice(0,3) : [], roll: rm ? { stat:rm[1].toUpperCase(), dc:Math.min(25,+rm[2]), why:rm[3].trim() } : null, round:T.round + 1, scene: sm ? sm[1].trim() : T.scene, effects: parseEffects(text) };
+    const entry = { kind:"gm", text:story, choices: cm ? cm[1].split("|").map(s => s.trim()).filter(Boolean).slice(0,3) : [], roll: rm ? { stat:rm[1].toUpperCase(), dc:Math.min(25,+rm[2]), why:rm[3].trim() } : null, round:T.round + 1, scene: sm ? sm[1].trim() : T.scene, effects: parseEffects(text), combat: parseCombat(text) };
     node.remove(); T.gmTurns++;
     applyLog(entry);
     if (T.R) T.R.emit("log", { ...entry, text:story.slice(0,3200) }).catch(()=>{});
@@ -1896,7 +2206,7 @@ Recent play:
 ${recent}
 Reply with only JSON: {"summary": under 130 words covering everything important so far, "quests": up to 5 OPEN quests as {"title": short, "kind": "Main"|"Side", "goal": one sentence, "giver": who asked (or ""), "reward": what was promised (or ""), "steps": 2-4 {"text": short objective, "done": true|false}} (keep titles stable between updates; remove finished or abandoned quests), "completed": titles of quests the party FINISHED since the previous update (usually empty), "npcs": up to 8 {"name": a non-player character the party has met, "attitude": "Hostile"|"Wary"|"Curious"|"Friendly"|"Loyal", "note": one sentence on who they are and what they want}, "fate": integer -3..3, moving at most 1 from the previous value}`, { modelTier:"quick", cache:false, seat:"chronicler" });
     const f0 = T.chron.fate; T.chron = sanitizeChron(c); if (T.chron.fate !== f0) pulseClass($(".fate"), "pulse", 1000); handleCompleted(T.chron.completed);
-    renderSide(); saveSolo();
+    renderSide(); saveSolo(); queueNpcFaces();
     if (T.R) T.R.emit("log", { kind:"chron", chron:{ ...T.chron, summary:T.chron.summary.slice(0,900) } }).catch(()=>{});
   } catch {}
   setLamp("ch", false);
