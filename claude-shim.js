@@ -37,6 +37,10 @@ document.addEventListener("DOMContentLoaded", () => { const s = document.createE
     } catch (e) { throw { code: e && e.name === "AbortError" ? "cancelled" : "upstream_error", message: String(e) }; }
     if (r.status === 401 && attempt < 2) { await askCode(); return callAI(input, opts, attempt + 1); }
     if (r.status === 429) throw { code: "rate_limited", message: await r.text().catch(() => "") };
+    if ([500, 502, 503, 504].includes(r.status) && attempt < 2 && !(opts.signal && opts.signal.aborted)) {
+      await new Promise(z => setTimeout(z, 2500 * (attempt + 1)));
+      return callAI(input, opts, attempt + 1);
+    }
     if (!r.ok) { const m = await r.text().catch(() => ""); console.warn("AI error:", m); throw { code: "upstream_error", message: m }; }
     const reader = r.body.getReader(), dec = new TextDecoder(); let text = "";
     try {
