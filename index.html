@@ -231,7 +231,10 @@ details.fine>div{padding:0 14px 14px;display:flex;flex-direction:column;gap:14px
 .fine .creator{grid-template-columns:1fr}
 .fine .cprev{max-width:200px;margin:0 auto;width:100%}
 .btn.ghost{background:none;border-color:transparent;color:var(--muted)}
-.pimg{position:absolute;inset:0;background:center/cover no-repeat}
+.pimg{position:absolute;inset:0;background:center top/cover no-repeat}
+.pc .pic,.wake .wp,.portrait{background-position:center top!important}
+.face img{width:100%;height:100%;object-fit:cover;object-position:center top;display:block}
+.paintprev{width:96px;aspect-ratio:4/5;border-radius:8px;border:1px solid var(--line);background:#0a0e16 center top/cover no-repeat}
 .pimg svg,.pic svg,.wp svg{position:absolute;inset:0;width:100%;height:100%}
 .face{width:44px;height:44px;border-radius:50%;overflow:hidden;flex:none;border:1px solid #ffffff22}
 .face svg{width:100%;height:100%;display:block}
@@ -613,7 +616,7 @@ async function loadData(){
   }
   chars = store.get("lh.chars", []); myWorlds = store.get("lh.worlds", []);
   $("#storeNote").textContent = "Characters and worlds are saved in this browser.";
-  rerender();
+  rerender(); paintMissing();
 }
 async function putDoc(obj, list){ if (DB && UID) { try { const { id, ...body } = obj; await DB.collection(colPath()).doc(id).set(body); return; } catch {} } store.set(list === "w" ? "lh.worlds" : "lh.chars", list === "w" ? myWorlds : chars); }
 async function delDoc(id, list){ if (DB && UID) { try { await DB.collection(colPath()).doc(id).delete(); return; } catch {} } store.set(list === "w" ? "lh.worlds" : "lh.chars", list === "w" ? myWorlds : chars); }
@@ -623,6 +626,23 @@ async function saveWorld(w){ myWorlds = [...myWorlds.filter(x => x.id !== w.id),
 async function removeWorld(id){ myWorlds = myWorlds.filter(x => x.id !== id); await delDoc(id, "w"); rerender(); }
 const allWorlds = () => [...CAMPAIGNS.filter(c => c.id !== "custom"), ...myWorlds];
 const worldById = id => allWorlds().find(w => w.id === id);
+/* painted portraits: a free image model paints the character from their description (website only; the Claude page keeps the drawing) */
+const PAINT = true;
+const isPainted = p => typeof p === "string" && p.startsWith("https://image.pollinations.ai/");
+function portraitURL(c){
+  const w = worldById(c.world) || {};
+  const who = c.pronouns === "he/him" ? "man" : c.pronouns === "she/her" ? "woman" : "person";
+  const look = (c.look || "").trim() || (c.avatar ? describeAvatar(c.avatar) : "");
+  const p = `Head and shoulders character portrait of a ${who}: ${look}. ${c.cls?.name ? c.cls.name + (c.cls.blurb ? ", " + c.cls.blurb : "") + "." : ""} Setting: ${w.genre || "fantasy"} world${w.name ? " of " + w.name : ""}. Cinematic dramatic lighting, moody colored background, detailed realistic digital painting, looking at the viewer, no text.`;
+  const seed = (hashStr(c.id + ":" + (c.paintSeed || 0)) % 999983) + 1;
+  return "https://image.pollinations.ai/prompt/" + encodeURIComponent(p.slice(0, 700)) + `?width=512&height=704&seed=${seed}&nologo=true`;
+}
+function preloadImg(u, ms){ return new Promise(res => { const i = new Image(); const t = setTimeout(() => res(false), ms || 30000); i.onload = () => { clearTimeout(t); res(true); }; i.onerror = () => { clearTimeout(t); res(false); }; i.src = u; }); }
+async function paintMissing(){
+  if (!PAINT) return; let n = 0;
+  for (const c of chars) if (!c.portrait && !c.noPaint) { c.portrait = portraitURL(c); n++; await putDoc(c, "c"); }
+  if (n) rerender();
+}
 function rerender(){ const v = curView(); if (v === "home") renderHome(); if (v === "worlds") renderWorlds(); if (v === "characters") renderChars(); updateContinue(); }
 
 /* ---------- art ---------- */
@@ -948,11 +968,18 @@ function editChar(c, after){
     const crHost = el("div"); crHost.hidden = true;
     const crBtn = el("button","btn small","Edit face & body"); crBtn.addEventListener("click", () => { avOpen = true; crBtn.hidden = true; crHost.hidden = false; buildCreator(crHost, av); });
     body.append(crBtn, crHost);
+    let repaint = false;
+    if (PAINT) {
+      const pv = el("div","paintprev"); if (c.portrait) pv.style.backgroundImage = `url("${c.portrait}")`;
+      const pb = el("button","btn small","Paint a new portrait"); const ps = el("span","status");
+      pb.addEventListener("click", async () => { pb.disabled = true; ps.textContent = "Painting..."; const tmp = { ...c, look: lk.value.trim() || c.look, paintSeed: (c.paintSeed || 0) + 1 }; const u = portraitURL(tmp); const ok = await preloadImg(u); if (ok) { c.paintSeed = tmp.paintSeed; c.portrait = u; c.noPaint = false; pv.style.backgroundImage = `url("${u}")`; ps.textContent = "Like it? Save changes to keep it."; repaint = true; } else ps.textContent = "The painter is busy. Try again in a moment."; pb.disabled = false; });
+      const r = el("div","portraitIn"); r.append(pv, pb, ps); body.append(fieldOf("Painted portrait (made from their description)", r));
+    }
     body.append(fieldOf("Name", nm), fieldOf("Other appearance details", lk), fieldOf("Where they come from", og), fieldOf("Backstory", bs), fieldOf("Portrait (an image you own)", pf));
     const row = el("div","row"); const save = el("button","btn primary","Save changes"); const close = el("button","btn","Cancel"); close.addEventListener("click", closeSheet);
     save.addEventListener("click", async () => {
       if (pf.files[0]) { try { c.portrait = await shrinkImage(pf.files[0]); } catch {} }
-      if (avOpen) { c.avatar = av; if (!pf.files[0]) c.portrait = null; }
+      if (avOpen) { c.avatar = av; if (!pf.files[0] && !repaint) { c.portrait = null; c.noPaint = true; } }
       c.name = nm.value.trim() || c.name; c.look = lk.value.trim(); c.origin = og.value.trim(); c.story = { ...(c.story || {}), backstory: bs.value.trim() }; c.updated = Date.now();
       await saveChar(c); closeSheet(); toast("Saved."); if (after) after(c); else renderChars();
     });
@@ -1018,7 +1045,7 @@ function renderWizard(){
     const t = el("textarea"); t.id = "wzLook"; t.maxLength = 400; t.placeholder = "Tall and wiry, dark skin, long silver braids, a scar over one eye, a red coat that always smells of smoke..."; t.value = WZ.draft.look;
     const lr = el("div","lrow"); const cnt = el("span","count"); lr.append(el("span","label","Appearance"), cnt);
     const upd = () => cnt.textContent = `${t.value.length}/400`; upd(); t.addEventListener("input", upd);
-    const fine = el("details","fine"); fine.dataset.nofacegen = ""; fine.append(el("summary",null,"Fine-tune the drawing, or upload a picture"));
+    const fine = el("details","fine"); fine.dataset.nofacegen = ""; fine.append(el("summary",null, PAINT ? "Prefer a cartoon drawing, or your own picture?" : "Fine-tune the drawing, or upload a picture"));
     const fin = el("div"); const cr = el("div"); buildCreator(cr, WZ.draft.avatar);
     const pin = el("div","portraitIn"); const img = el("img"); img.alt = ""; img.hidden = !WZ.draft.portrait; if (WZ.draft.portrait) img.src = WZ.draft.portrait;
     const f = el("input"); f.type = "file"; f.accept = "image/*"; f.id = "wzPic"; f.style.maxWidth = "260px";
@@ -1029,10 +1056,12 @@ function renderWizard(){
     const doDraw = async () => { const d = t.value.trim(); if (!d || !window.lhFace) return false; try { await window.lhFace.build(cr, d); WZ.draft.lookBuilt = d; return true; } catch (e) { dst.textContent = errText(e); return false; } };
     draw.addEventListener("click", async () => { draw.disabled = true; dst.textContent = "Drawing..."; if (await doDraw()) dst.textContent = "Done. Tweak anything below."; draw.disabled = false; });
     const dr = el("div","row"); dr.append(draw, dst);
-    fin.append(dr, cr, fieldOf("Your own picture (an image you own)", pin)); fine.append(fin);
+    fin.append(dr, cr, fieldOf("Your own picture (an image you own)", pin));
+    if (PAINT) { const lab = el("label","row"); const cb = el("input"); cb.type = "checkbox"; cb.id = "wzNoPaint"; cb.checked = !!WZ.draft.noPaint; cb.addEventListener("change", () => WZ.draft.noPaint = cb.checked); lab.append(cb, el("span",null,"Use this drawing instead of a painted portrait")); fin.prepend(lab); }
+    fine.append(fin);
     const n = nextBtn("Continue →", async () => {
       WZ.draft.look = t.value.trim();
-      if (WZ.draft.look && WZ.draft.look !== WZ.draft.lookBuilt && !WZ.draft.portrait && window.lhFace) { n.disabled = true; n.textContent = `Drawing ${nm()}...`; await doDraw(); }
+      if (WZ.draft.look && WZ.draft.look !== WZ.draft.lookBuilt && !WZ.draft.portrait && window.lhFace && (!PAINT || WZ.draft.noPaint)) { n.disabled = true; n.textContent = `Drawing ${nm()}...`; await doDraw(); }
       WZ.step = "origin"; renderWizard();
     });
     box.append(el("p","label","Pronouns"), row, lr, t, n, fine); t.focus();
@@ -1053,9 +1082,9 @@ function renderWizard(){
       WZ.classes.forEach((c, i) => acc.append(classCard(c, i)));
       acc.append(customClassCard());
     }
-    const go1 = nextBtn("Begin story →", async () => { go1.disabled = true; const c = await finishChar(); startGame("solo", c, WZ.world); }, !WZ.draft.cls);
+    const go1 = nextBtn("Begin story →", async () => { go1.disabled = true; const c = await finishChar(go1); startGame("solo", c, WZ.world); }, !WZ.draft.cls);
     const fr = el("button","btn ghost block","Play with friends instead"); fr.disabled = !WZ.draft.cls;
-    fr.addEventListener("click", async () => { fr.disabled = true; const c = await finishChar(); WZ.char = c; WZ.justMade = true; WZ.step = "mode"; renderWizard(); });
+    fr.addEventListener("click", async () => { fr.disabled = true; const c = await finishChar(fr); WZ.char = c; WZ.justMade = true; WZ.step = "mode"; renderWizard(); });
     box.append(go1, fr);
     return;
   }
@@ -1073,10 +1102,12 @@ function renderWizard(){
     const ed = el("button","btn small","Edit character"); ed.addEventListener("click", () => editChar(c, nc => { WZ.char = nc; renderWizard(); })); box.append(ed);
   }
 }
-async function finishChar(){
+async function finishChar(btn){
   const dr = WZ.draft; const base = rollStats();
   const stats = {}; for (const k of STATS) stats[k] = base[k] + (dr.cls.bonus?.[k] || 0);
   const c = { id:dr.id, world:dr.world, name:dr.name, pronouns:dr.pronouns, look:dr.look, origin:dr.origin, cls:dr.cls, stats, story:null, portrait:dr.portrait, avatar:dr.avatar, hp:Math.max(1, (dr.cls.hitDie || 8) + mod(stats.CON)), updated:Date.now() };
+  if (PAINT && !c.portrait && !dr.noPaint) { c.portrait = portraitURL(c); if (btn) btn.textContent = `Painting ${c.name}'s portrait...`; await preloadImg(c.portrait, 30000); }
+  if (dr.noPaint) c.noPaint = true;
   await saveChar(c); forgeStory(c, WZ.world);
   return c;
 }
