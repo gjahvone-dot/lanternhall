@@ -19,6 +19,9 @@ function modelFor(provider, fast) {
   if (provider === "gemini") return (fast && env("GEMINI_FAST_MODEL")) || env("GEMINI_MODEL");
 }
 
+// When the main model is stuck or out of free quota, skip it for a while (per server instance).
+let mainDownUntil = 0;
+
 // --- simple per-IP rate limit (per server instance) ---
 const hits = new Map();
 function limited(ip) {
@@ -99,8 +102,13 @@ export default async function handler(req) {
     catch { clearTimeout(t); return null; }
   };
   const backup = modelFor(provider, true);
-  let upstream = await tryModel(model, backup && backup !== model ? 12000 : 22000);
-  if ((!upstream || !upstream.ok) && backup && backup !== model) upstream = await tryModel(backup, 11000) || upstream;
+  const hasBackup = backup && backup !== model;
+  let upstream = null;
+  if (!hasBackup || Date.now() > mainDownUntil) {
+    upstream = await tryModel(model, hasBackup ? 9000 : 22000);
+    if (hasBackup && (!upstream || [429, 500, 502, 503, 504].includes(upstream.status))) mainDownUntil = Date.now() + 5 * 60 * 1000;
+  }
+  if ((!upstream || !upstream.ok) && hasBackup) upstream = await tryModel(backup, 13000) || upstream;
   const usedModel = upstream && upstream.__m || model;
   if (!upstream) return new Response("The AI took too long to answer. Try again.", { status: 504 });
   if (!upstream.ok) {
