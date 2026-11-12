@@ -29,17 +29,17 @@ function limited(ip) {
   return arr.length > max;
 }
 
-function upstreamRequest(provider, model, messages, maxTokens) {
+function upstreamRequest(provider, model, messages, maxTokens, signal) {
   if (provider === "anthropic") {
     return fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
+      method: "POST", signal,
       headers: { "x-api-key": env("ANTHROPIC_API_KEY"), "anthropic-version": "2023-06-01", "content-type": "application/json" },
       body: JSON.stringify({ model, max_tokens: maxTokens, stream: true, system: SYSTEM, messages }),
     });
   }
   if (provider === "openai") {
     return fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
+      method: "POST", signal,
       headers: { authorization: `Bearer ${env("OPENAI_API_KEY")}`, "content-type": "application/json" },
       body: JSON.stringify({ model, stream: true, messages: [{ role: "system", content: SYSTEM }, ...messages] }),
     });
@@ -47,7 +47,7 @@ function upstreamRequest(provider, model, messages, maxTokens) {
   // gemini
   const contents = messages.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }));
   return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, {
-    method: "POST",
+    method: "POST", signal,
     headers: { "x-goog-api-key": env("GEMINI_API_KEY"), "content-type": "application/json" },
     body: JSON.stringify({ contents, systemInstruction: { parts: [{ text: SYSTEM }] }, generationConfig: { maxOutputTokens: maxTokens } }),
   });
@@ -91,9 +91,18 @@ export default async function handler(req) {
   const model = modelFor(provider, fast);
   if (!model) return new Response(`Set ${provider.toUpperCase()}_MODEL in your Vercel settings to use ${provider}.`, { status: 503 });
 
-  let upstream;
-  try { upstream = await upstreamRequest(provider, model, messages, fast ? 1200 : 1800); }
-  catch { return new Response("Couldn't reach the AI provider.", { status: 502 }); }
+  // Try the main model, but don't let a slow or stuck model hit Vercel's 25s limit:
+  // after a few seconds (or on a provider error) fall back to the fast model.
+  const tryModel = async (m, ms) => {
+    const ac = new AbortController(); const t = setTimeout(() => ac.abort(), ms);
+    try { const r = await upstreamRequest(provider, m, messages, fast ? 1200 : 1800, ac.signal); clearTimeout(t); r.__m = m; return r; }
+    catch { clearTimeout(t); return null; }
+  };
+  const backup = modelFor(provider, true);
+  let upstream = await tryModel(model, backup && backup !== model ? 12000 : 22000);
+  if ((!upstream || !upstream.ok) && backup && backup !== model) upstream = await tryModel(backup, 11000) || upstream;
+  const usedModel = upstream && upstream.__m || model;
+  if (!upstream) return new Response("The AI took too long to answer. Try again.", { status: 504 });
   if (!upstream.ok) {
     const t = await upstream.text().catch(() => "");
     const status = upstream.status === 429 ? 429 : 502;
@@ -122,5 +131,5 @@ export default async function handler(req) {
       ctrl.close();
     },
   });
-  return new Response(stream, { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-ai-provider": provider } });
+  return new Response(stream, { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-ai-provider": provider, "x-ai-model": usedModel } });
 }
