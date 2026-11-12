@@ -1,0 +1,1715 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Lanternhall: an AI-run tabletop RPG. Pick a world, make a character, play solo or with friends.">
+<meta property="og:title" content="Lanternhall"><meta property="og:description" content="Pick a world, make a character, and a council of AIs runs the game.">
+<meta name="theme-color" content="#05070c">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Cpath d=%22M12 3c3 3 3 7 0 10-3-3-3-7 0-10z%22 fill=%22%23f2c14e%22/%3E%3C/svg%3E">
+<title>Lanternhall</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Grenze+Gotisch:wght@500;700&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a night-sky guild hall. Worlds → character → table, one clear path, sticky header, sidebar rail at the table. */
+:root{
+  --bg:#05070c; --surface:#0c1018; --raise:#121825; --ink:#ece8de; --muted:#8c94a4; --line:#232a37;
+  --gold:#f2c14e; --gold-soft:#2a2210; --red:#e0453a; --place:#f08a4b; --teal:#7cc7d9; --teal-soft:#14213a; --green:#4cc38a;
+  --display:"Grenze Gotisch","Palatino Linotype",Georgia,serif;
+  --body:"Alegreya Sans","Segoe UI",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{background:var(--bg)}
+body{color:var(--ink);font:17px/1.55 var(--body);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  background-color:var(--bg);
+  background-image:radial-gradient(1.2px 1.2px at 23px 41px,#ffffffb0 50%,transparent 51%),radial-gradient(1px 1px at 151px 97px,#ffffff80 50%,transparent 51%),radial-gradient(1.4px 1.4px at 211px 199px,#ffffff90 50%,transparent 51%),radial-gradient(1px 1px at 89px 233px,#ffffff70 50%,transparent 51%),radial-gradient(ellipse 90% 60% at 70% -10%,#1a2546 0%,transparent 60%);
+  background-size:260px 260px,260px 260px,260px 260px,260px 260px,100% 100%;background-attachment:fixed;animation:drift 300s linear infinite}
+@keyframes drift{to{background-position:260px 520px,-260px 260px,520px 260px,0 520px,0 0}}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:#080b12}
+h1,h2,h3,h4{text-wrap:balance;margin:0}
+p{margin:0}
+a{color:var(--gold)}
+button,select,input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto}
+.label{font:600 11px/1.2 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.muted{color:var(--muted)}
+h2.big{font:700 clamp(32px,4.4vw,48px)/1.05 var(--display)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);background:var(--raise);color:var(--ink);padding:10px 18px;border-radius:999px;cursor:pointer;font-weight:500;font-size:15px;text-decoration:none}
+.btn:hover{border-color:var(--gold)}
+.btn.primary{background:var(--gold);border-color:var(--gold);color:#140e02;font-weight:700}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.block{width:100%;border-radius:10px;padding:12px}
+.btn.small{padding:6px 12px;font-size:14px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+input,select,textarea{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:11px 12px;width:100%}
+textarea{resize:vertical;min-height:90px}
+.field{display:flex;flex-direction:column;gap:6px}
+.field>span{font-size:14px;color:var(--muted)}
+.chip{font:500 13px var(--mono);background:var(--surface);border:1px solid var(--line);color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer}
+.chip[aria-pressed="true"]{border-color:var(--gold);color:var(--gold);background:var(--gold-soft)}
+.tag{font:500 11px/1 var(--mono);padding:5px 8px;border-radius:4px;background:var(--teal-soft);color:var(--teal)}
+.tags{display:flex;gap:6px;flex-wrap:wrap}
+.status{font:500 13px var(--mono);color:var(--muted);min-height:1.2em}
+.status.err{color:#ff8a80}
+
+/* header */
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;background:rgb(8 11 18 / .88);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);margin-left:calc(-1*max(16px,env(safe-area-inset-left,0px)));margin-right:calc(-1*max(16px,env(safe-area-inset-right,0px)));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.top .wrap{display:flex;align-items:center;gap:16px;padding-block:10px;flex-wrap:wrap}
+.mark{font:700 27px/1 var(--display);color:var(--ink);text-decoration:none;display:flex;align-items:center;gap:9px}
+.mark svg{width:22px;height:22px;color:var(--gold)}
+nav.links{display:flex;gap:2px;flex-wrap:wrap;margin-left:auto;align-items:center}
+nav.links a{color:var(--muted);text-decoration:none;padding:7px 12px;border-radius:999px;font-weight:500;font-size:15px}
+nav.links a[aria-current="page"],nav.links a:hover{color:var(--ink);background:var(--raise)}
+#continueBtn{margin-left:6px}
+
+.view{padding-block:34px 70px}
+.sechead{display:flex;justify-content:space-between;align-items:end;gap:20px;flex-wrap:wrap;margin-bottom:24px}
+.sechead p{max-width:52ch;color:var(--muted)}
+
+/* home */
+.hero{display:grid;grid-template-columns:1.3fr 1fr;gap:40px;align-items:center;padding-block:40px 30px}
+.hero h1{font:700 clamp(64px,11vw,138px)/.86 var(--display)}
+.hero h1 em{font-style:normal;color:var(--gold);text-shadow:0 0 40px #f2c14e55}
+.hero .lede{font-size:21px;max-width:34ch;margin-top:18px}
+.hero .cta{display:flex;gap:10px;margin-top:24px;flex-wrap:wrap}
+.d20box{display:flex;flex-direction:column;align-items:center;gap:12px;background:radial-gradient(circle at 50% 45%,#f2c14e22,transparent 60%)}
+.d20{width:min(260px,64vw);aspect-ratio:1;max-width:100%;cursor:pointer;border:0;background:none;padding:0}
+.d20 svg{width:100%;height:100%;transition:transform .7s cubic-bezier(.2,.8,.2,1)}
+.d20 polygon{fill:#2a2210;stroke:var(--gold);stroke-width:2}
+.d20 .facet{fill:none;stroke:var(--gold);stroke-width:1.2;opacity:.6}
+.d20 text{font:700 64px var(--display);fill:var(--ink)}
+.d20msg{font:500 15px var(--mono);color:var(--muted);min-height:1.5em;text-align:center}
+section.block{padding-block:44px;border-top:1px solid var(--line)}
+.steps3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.steps3 a{display:flex;flex-direction:column;gap:6px;padding:20px;border:1px solid var(--line);border-radius:14px;background:var(--surface);text-decoration:none;color:var(--ink)}
+.steps3 a:hover{border-color:var(--gold)}
+.steps3 b{font:700 40px/1 var(--display);color:var(--gold)}
+.steps3 p{color:var(--muted);font-size:15px}
+.council{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.seat{border:1px solid var(--line);border-radius:14px;padding:18px;background:var(--surface);display:flex;flex-direction:column;gap:6px}
+.seat .sig{font:700 32px/1 var(--display);color:var(--gold)}
+.seat h3{font-size:19px}
+.seat p{font-size:15px;color:var(--muted)}
+footer{padding-block:28px;color:var(--muted);font-size:14px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+
+/* worlds */
+.feature{display:grid;grid-template-columns:1.1fr 1fr;border-radius:18px;overflow:hidden;border:1px solid #ffffff1a;background:var(--surface);margin-bottom:28px;min-height:300px}
+.feature .fart{background:var(--art);position:relative;min-height:220px}
+.feature .fart .num{position:absolute;left:18px;top:10px;font:700 80px/1 var(--display);color:transparent;-webkit-text-stroke:2px #ffffffa0}
+.feature .fbody{padding:26px;display:flex;flex-direction:column;gap:12px;justify-content:center}
+.feature h3{font:700 clamp(34px,4vw,48px)/1 var(--display)}
+.feature .fnav{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap}
+.dots{display:flex;gap:6px;margin-left:auto}
+.dots i{width:8px;height:8px;border-radius:50%;background:var(--line)}
+.dots i.on{background:var(--gold)}
+.wbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
+.wtabs{display:flex;gap:4px;flex-wrap:wrap}
+.wtab{background:none;border:0;color:var(--muted);font:600 12px var(--mono);letter-spacing:.14em;text-transform:uppercase;padding:8px 10px;cursor:pointer;border-bottom:2px solid transparent}
+.wtab[aria-selected="true"]{color:var(--ink);border-color:var(--gold)}
+.wbar input{max-width:280px;margin-left:auto}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}
+.tile{position:relative;aspect-ratio:3/4;max-width:100%;border-radius:14px;overflow:hidden;border:1px solid #ffffff14;cursor:pointer;padding:0;color:#fff;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;background:var(--art);transition:transform .25s,box-shadow .25s,border-color .25s;animation:rise .45s both}
+.tile:hover,.tile:focus-visible{transform:translateY(-5px);box-shadow:0 18px 40px -12px var(--glow);border-color:#ffffff40}
+.tile .num{position:absolute;top:6px;left:10px;font:700 50px/1 var(--display);color:transparent;-webkit-text-stroke:1.5px #ffffffa0}
+.tile .kind{position:absolute;top:12px;right:10px;font:600 9px/1 var(--mono);letter-spacing:.14em;background:#0008;padding:5px 7px;border-radius:4px}
+.tile h3{font:700 clamp(21px,2.3vw,26px)/1.05 var(--display);text-shadow:0 2px 14px #000c;padding:0 12px}
+.tile .g{font:600 10px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:#ffffffb8;margin-top:8px;padding:0 10px}
+.tile.make{background:repeating-linear-gradient(45deg,#121825 0 12px,#0e131d 12px 24px);border:1px dashed #ffffff40}
+.tile.make .plus{font:700 60px/1 var(--display);color:var(--gold)}
+
+/* sheet */
+.sheet{position:fixed;inset:0;z-index:50;background:#000b;display:grid;place-items:center;padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));animation:fade .2s}
+.sheet-card{width:min(560px,100%);max-height:100%;overflow-y:auto;background:var(--surface);border:1px solid var(--line);border-radius:16px;animation:rise .3s}
+.sheet-art{min-height:130px;background:var(--art);display:flex;align-items:end;padding:16px 20px}
+.sheet-art h3{font:700 36px/1 var(--display);color:#fff;text-shadow:0 2px 14px #000c}
+.sheet-body{padding:18px 20px 20px;display:flex;flex-direction:column;gap:14px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* characters */
+.cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+.ccard{border:1px solid var(--line);border-radius:14px;background:var(--surface);overflow:hidden;display:flex;flex-direction:column}
+.ccard .pic{aspect-ratio:4/3;background:#0a0e16 center/cover no-repeat;position:relative;max-width:100%}
+.ccard .pic canvas{position:absolute;inset:0;width:100%;height:100%}
+.ccard .info{padding:12px 14px;display:flex;flex-direction:column;gap:4px}
+.ccard h3{font:700 24px/1 var(--display)}
+.ccard .meta{font-size:14px;color:var(--muted)}
+.ccard .acts{display:flex;gap:6px;padding:0 14px 14px;flex-wrap:wrap}
+.joinbar{display:flex;gap:10px;flex-wrap:wrap;align-items:end;border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:16px;margin-bottom:22px}
+.joinbar .field{flex:1;min-width:160px}
+.empty{border:1px dashed var(--line);border-radius:14px;padding:26px;color:var(--muted);text-align:center}
+
+/* create wizard */
+.wizard{max-width:480px;margin:0 auto;display:flex;flex-direction:column;gap:16px;padding-top:20px}
+.wtop{display:flex;align-items:center;gap:12px}
+.back{background:none;border:0;color:var(--muted);cursor:pointer;font-size:22px;padding:0 4px;line-height:1}
+.prog{flex:1;height:3px;background:var(--line);border-radius:2px;overflow:hidden}
+.prog b{display:block;height:100%;background:linear-gradient(90deg,#6f7cff,#9fb4ff);transition:width .4s}
+.wizard h2{font:700 34px/1.05 var(--display)}
+.wizard .sub{color:var(--muted);font-size:15px;margin-top:-8px}
+.worldchip{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--surface);font-size:14px}
+.worldchip i{width:28px;height:28px;border-radius:6px;background:var(--art);flex:none}
+.worldchip a{margin-left:auto;font-size:13px}
+.newchar{display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:14px;cursor:pointer;text-align:left}
+.newchar:hover{border-color:var(--gold)}
+.newchar .plus{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;background:var(--raise);font-size:20px}
+.pickchars{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+.pc{border:1px solid var(--line);border-radius:12px;overflow:hidden;cursor:pointer;background:var(--surface);padding:0;text-align:left}
+.pc:hover{border-color:var(--gold)}
+.pc .pic{aspect-ratio:1;background:#0a0e16 center/cover no-repeat;position:relative;max-width:100%}
+.pc .pic canvas{position:absolute;inset:0;width:100%;height:100%}
+.pc b{display:block;padding:8px 10px 0;font:700 18px/1.1 var(--display)}
+.pc small{display:block;padding:0 10px 9px;color:var(--muted);font-size:12px}
+.acc{display:flex;flex-direction:column;gap:8px}
+.cls{border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
+.cls>button{all:unset;box-sizing:border-box;width:100%;display:flex;justify-content:space-between;align-items:center;padding:12px 14px;cursor:pointer;gap:10px}
+.cls>button:focus-visible{outline:2px solid var(--gold)}
+.cls .cn{font:700 22px/1.1 var(--display);color:var(--hue)}
+.cls .sel{font:600 10px var(--mono);letter-spacing:.12em;color:var(--hue)}
+.cls[open]{border-color:var(--hue);background:linear-gradient(180deg,color-mix(in srgb,var(--hue) 10%,transparent),transparent)}
+.cls .cb{padding:0 14px 14px;display:flex;flex-direction:column;gap:10px;font-size:15px}
+.cls .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.cls .two div{display:flex;flex-direction:column;gap:2px;font-size:14px}
+.cls .two span{display:flex;justify-content:space-between;gap:6px}
+.plus{color:var(--green)} .minus{color:var(--red)}
+.cls.custom{--hue:#f0a04b}
+.skel{height:52px;border-radius:12px;background:linear-gradient(90deg,var(--surface),var(--raise),var(--surface));background-size:200% 100%;animation:shimmer 1.2s infinite}
+@keyframes shimmer{to{background-position:-200% 0}}
+.statgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{border:1px solid var(--line);border-radius:10px;background:var(--surface);text-align:center;padding:10px 4px}
+.stat b{display:block;font:600 11px var(--mono);letter-spacing:.1em;color:var(--muted)}
+.stat .v{font:700 30px/1.1 var(--display);font-variant-numeric:tabular-nums}
+.stat .m{font:500 12px var(--mono);color:var(--teal)}
+.stat .bn{font:500 11px var(--mono)}
+.modes{display:flex;flex-direction:column;gap:10px}
+.mode{border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:16px;display:flex;flex-direction:column;gap:8px}
+.mode h3{font-size:19px}
+.mode p{color:var(--muted);font-size:15px}
+.portraitIn{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.portraitIn img{width:64px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+
+/* wake */
+.wake{position:fixed;inset:0;z-index:70;background:#05070cf2;display:grid;place-items:center;animation:fade .4s;text-align:center}
+.wake .wp{width:150px;height:150px;border-radius:12px;background:#0a0e16 center/cover no-repeat;margin:0 auto 18px;position:relative;overflow:hidden;box-shadow:0 0 60px #7cc7d955}
+.wake .wp canvas{position:absolute;inset:0;width:100%;height:100%}
+.wake h2{font:700 clamp(30px,5vw,44px)/1 var(--display)}
+.wake.out{animation:fadeout .7s forwards}
+@keyframes fadeout{to{opacity:0;visibility:hidden}}
+
+/* guide */
+.guide{display:grid;grid-template-columns:220px minmax(0,1fr);gap:32px;align-items:start}
+.gtoc{position:sticky;top:calc(env(safe-area-inset-top,0px) + 76px);display:flex;flex-direction:column;gap:2px}
+.gtoc a{color:var(--muted);text-decoration:none;padding:7px 10px;border-radius:8px;font-size:15px}
+.gtoc a:hover{color:var(--ink);background:var(--raise)}
+.gbody{display:flex;flex-direction:column;gap:30px;max-width:68ch}
+.gbody section{display:flex;flex-direction:column;gap:10px;scroll-margin-top:90px}
+.gbody h3{font:700 30px/1.1 var(--display);color:var(--gold)}
+.gbody ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
+.gbody .ex{border-left:3px solid var(--gold);padding:8px 14px;background:var(--surface);border-radius:0 8px 8px 0;font-style:italic}
+@media (max-width:820px){.guide{grid-template-columns:1fr}.gtoc{position:static;flex-direction:row;flex-wrap:wrap}}
+
+/* creator */
+.creator{display:grid;grid-template-columns:minmax(0,230px) minmax(0,1fr);gap:18px;align-items:start}
+.cprev{aspect-ratio:4/5;border-radius:12px;overflow:hidden;border:1px solid var(--line);max-width:100%;position:relative}
+.cprev svg{display:block;width:100%;height:100%}
+.cctl{display:flex;flex-direction:column;gap:12px;min-width:0}
+.csecs{display:flex;flex-direction:column;gap:12px}
+.csec{display:flex;flex-direction:column;gap:6px}
+.sw{width:30px;height:30px;border-radius:50%;border:2px solid #ffffff22;cursor:pointer;padding:0}
+.sw[aria-pressed="true"]{border-color:var(--gold);box-shadow:0 0 0 2px var(--bg) inset}
+.wizard.wide{max-width:820px}
+.pimg{position:absolute;inset:0;background:center/cover no-repeat}
+.pimg svg,.pic svg,.wp svg{position:absolute;inset:0;width:100%;height:100%}
+.face{width:44px;height:44px;border-radius:50%;overflow:hidden;flex:none;border:1px solid #ffffff22}
+.face svg{width:100%;height:100%;display:block}
+@media (max-width:640px){.creator{grid-template-columns:1fr}.cprev{max-width:220px;margin:0 auto;width:100%}}
+
+/* stage */
+.stage{margin-left:calc(-1*max(16px,env(safe-area-inset-left,0px)));margin-right:calc(-1*max(16px,env(safe-area-inset-right,0px)));padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px 60px;min-height:calc(100vh - 60px)}
+.stage-in{display:grid;grid-template-columns:280px minmax(0,1fr);gap:28px;align-items:start}
+.rail{position:sticky;top:calc(env(safe-area-inset-top,0px) + 66px);display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 80px);overflow-y:auto;padding-bottom:12px}
+.railtabs{display:flex;gap:6px}
+.rt{flex:1;background:var(--surface);border:1px solid var(--line);color:var(--ink);font:600 11px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;padding:11px 8px;border-radius:8px;cursor:pointer}
+.rt[aria-selected="true"]{border-color:var(--green);color:var(--green);background:#0e2019}
+.portrait{position:relative;aspect-ratio:4/5;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:#0a0e16 center/cover no-repeat;max-width:100%}
+.portrait canvas{position:absolute;inset:0;width:100%;height:100%}
+.portrait .pname{position:absolute;left:0;right:0;bottom:0;padding:40px 12px 12px;background:linear-gradient(transparent,#000d)}
+.portrait .pname b{display:block;font:700 26px/1 var(--display);color:#fff}
+.portrait .pname span{font-size:13px;color:#ddd}
+.bars{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px}
+.bar{display:grid;grid-template-columns:44px 1fr 50px;align-items:center;gap:8px;font:600 10px var(--mono);letter-spacing:.06em}
+.bar i{height:8px;border-radius:2px;background:#1f2633;overflow:hidden;display:block}
+.bar i b{display:block;height:100%;transition:width .6s}
+.bar em{font-style:normal;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+.bar.hp span{color:var(--red)} .bar.hp b{background:var(--red)}
+.bar.xp span{color:var(--green)} .bar.xp b{background:var(--green)}
+.ptabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.ptab{background:var(--surface);border:1px solid var(--line);border-radius:8px;color:var(--muted);height:40px;display:grid;place-items:center;cursor:pointer}
+.ptab svg{width:17px;height:17px}
+.ptab[aria-selected="true"]{border-color:var(--green);color:var(--green);background:#0e2019}
+.pane{display:flex;flex-direction:column;gap:8px;font-size:14px}
+.pane h4{font:700 11px var(--mono);letter-spacing:.16em;text-transform:uppercase;margin:6px 0 0 2px}
+.skill{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;background:none;border:0;border-bottom:1px solid var(--line);padding:6px 2px;color:var(--ink);cursor:pointer;text-align:left}
+.skill:hover{color:var(--gold)}
+.skill em{font:600 13px var(--mono);font-style:normal;color:var(--teal)}
+.skill.prof span::after{content:" \2022";color:var(--gold)}
+.item{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface)}
+.item small{display:block;color:var(--muted);font-size:12px}
+.qcard{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:12px;display:flex;flex-direction:column;gap:6px}
+.qcard b{font-size:15px}
+.qk{font:600 10px var(--mono);letter-spacing:.1em;padding:3px 7px;border-radius:4px;width:max-content}
+.qk.main{background:#3a2b08;color:var(--gold)} .qk.side{background:var(--teal-soft);color:var(--teal)} .qk.done{background:#10261d;color:var(--green)}
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;font-size:13px}
+.steps li{display:flex;gap:8px;align-items:flex-start}
+.steps li::before{content:"";flex:none;width:12px;height:12px;border:1.5px solid var(--muted);border-radius:3px;margin-top:3px}
+.steps li.ok{color:var(--muted);text-decoration:line-through}
+.steps li.ok::before{background:var(--green);border-color:var(--green)}
+.offer{border:1px solid #6b5420;background:linear-gradient(180deg,#1b160b,var(--surface));border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.offer .meta{display:flex;gap:6px;flex-wrap:wrap;font:600 10px var(--mono);letter-spacing:.08em;text-transform:uppercase}
+.offer .meta span{padding:3px 6px;border-radius:4px;background:var(--raise);color:var(--muted)}
+.offer .meta .Deadly{color:#ff8a80} .offer .meta .Hard{color:var(--place)} .offer .meta .Easy{color:var(--green)}
+.rel{border:1px solid #6b5420;background:linear-gradient(90deg,#2a2210,#15130d);border-radius:10px;overflow:hidden}
+.rel>button{all:unset;box-sizing:border-box;width:100%;padding:10px 12px;display:grid;grid-template-columns:44px 1fr auto;gap:10px;align-items:center;cursor:pointer}
+.rel>button:focus-visible{outline:2px solid var(--gold)}
+.rel .rn{font:700 21px/1.1 var(--display);color:#f1e7cf}
+.rel .ra{font:600 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:#bfa565;margin-top:4px}
+.rel .chev{color:#bfa565;transition:transform .2s}
+.rel[open] .chev{transform:rotate(180deg)}
+.rel .rbody{padding:0 12px 12px;color:#d8d0bd;display:flex;flex-direction:column;gap:8px}
+.rel.a-hostile{border-color:#7a2723;background:linear-gradient(90deg,#2b1110,#150d0d)} .rel.a-hostile .ra{color:#e0786f}
+.rel.a-friendly,.rel.a-loyal{border-color:#25604a;background:linear-gradient(90deg,#10261d,#0d1512)} .rel.a-friendly .ra,.rel.a-loyal .ra{color:#6fd3a4}
+.cmds{display:flex;flex-direction:column;gap:6px}
+.cmd{display:grid;grid-template-columns:22px 1fr;gap:10px;align-items:start;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px;cursor:pointer;color:var(--ink)}
+.cmd:hover{border-color:var(--green)}
+.cmd i{width:18px;height:18px;border:1.5px solid var(--muted);border-radius:50%;margin-top:2px}
+.cmd b{display:block;font-size:14px}
+.cmd small{display:block;color:var(--muted);font-size:12px;line-height:1.3}
+.box{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:12px;display:flex;flex-direction:column;gap:8px;font-size:14px}
+.fate{height:8px;border-radius:4px;background:linear-gradient(90deg,var(--red),var(--line) 50%,var(--green));position:relative}
+.fate i{position:absolute;top:-4px;width:4px;height:16px;background:var(--ink);border-radius:2px;transition:left .5s}
+.fatelbl{display:flex;justify-content:space-between;font:500 11px var(--mono);color:var(--muted)}
+.lamp{display:flex;align-items:center;gap:8px}
+.lamp i{width:9px;height:9px;border-radius:50%;background:var(--line)}
+.lamp.on i{background:var(--gold);box-shadow:0 0 10px var(--gold)}
+.party div{display:flex;justify-content:space-between;gap:8px}
+.party .you{color:var(--gold)}
+.code{font:600 20px var(--mono);letter-spacing:.08em;color:var(--gold)}
+.tale{max-width:680px;width:100%;margin:0 auto;padding-top:10px}
+.talehead{text-align:center;margin-bottom:22px}
+.talehead h2{font:700 clamp(30px,4.4vw,46px)/1.05 var(--display);margin-top:6px}
+.log{display:flex;flex-direction:column;gap:18px}
+.entry{animation:rise .4s both}
+.entry.gm{font-size:17px;line-height:1.65}
+.entry.gm .txt{display:flex;flex-direction:column;gap:14px}
+.entry.gm .np{color:var(--gold);font-weight:700}
+.entry.gm .pl{color:var(--place);font-weight:500}
+.entry.gm em{font-style:italic;color:#d9d4c8}
+.entry.thinking .txt{color:var(--muted);font-style:italic}
+.entry.actrow{align-self:flex-end;display:flex;gap:10px;align-items:flex-end;max-width:min(60ch,100%)}
+.entry.actrow .act{background:#14213a;border-radius:12px 12px 2px 12px;padding:9px 13px;min-width:0}
+.entry.actrow .face{width:36px;height:36px}
+.face img{width:100%;height:100%;object-fit:cover;display:block}
+.say .rep{background:none;border:0;color:var(--teal);font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;cursor:pointer;padding:6px 0 0}
+.say .rep:hover{color:var(--ink)}
+.replyrow{margin:-8px 0 0 56px}
+.entry .who{font:600 11px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--teal);margin-bottom:5px}
+.entry.sys{font:500 13px var(--mono);color:var(--muted);align-self:center;text-align:center}
+.entry.roll{font:500 14px var(--mono);align-self:center;background:#2a2210;padding:6px 12px;border-radius:999px;color:#f1e7cf}
+.entry.ooc{border:1px dashed #3a4558;border-radius:10px;padding:10px 12px;font-size:15px;color:#c9cfdb}
+.entry.ooc .who{color:var(--green)}
+.say{display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:start;background:#0f1420;border:1px solid #2b3446;border-radius:12px;padding:12px 14px}
+.say .av{width:44px;height:44px;border-radius:50%;overflow:hidden;border:1px solid #ffffff22}
+.say .av svg{width:100%;height:100%;display:block}
+.say .sn{font:600 11px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--gold)}
+.say .sl{font-size:17px;font-style:italic}
+.say .play{background:none;border:1px solid #2b3446;color:var(--ink);border-radius:50%;width:32px;height:32px;cursor:pointer;display:grid;place-items:center}
+.say .play:hover,.say .play.on{border-color:var(--gold);color:var(--gold)}
+.say .play svg{width:14px;height:14px}
+.next{margin-top:26px;display:flex;flex-direction:column;gap:12px}
+.tbc{text-align:center;font:600 11px var(--mono);letter-spacing:.32em;text-transform:uppercase;color:var(--teal)}
+.whonext{text-align:center;font:700 20px var(--body)}
+.whonext b{color:var(--red)}
+.choices{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.choice{border:1px solid #6b5420;color:var(--ink);background:var(--raise);border-radius:999px;padding:7px 13px;cursor:pointer;font-size:14px}
+.choice:hover{border-color:var(--gold)}
+.sendrow{display:flex;gap:8px}
+.sendrow textarea{min-height:52px;flex:1}
+.dice{display:flex;gap:6px;flex-wrap:wrap;align-items:center;justify-content:center}
+.die{font:600 13px var(--mono);border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;padding:6px 9px;cursor:pointer}
+.rolltip{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;border:1px solid #6b5420;background:#1b160b;border-radius:10px;padding:10px}
+
+/* fx */
+@keyframes rise{from{opacity:0;transform:translateY(10px)}}
+@keyframes fade{from{opacity:0}}
+@keyframes dspin{from{transform:rotate(-540deg) scale(.6)}}
+#fx{position:fixed;inset:0;pointer-events:none;z-index:80;overflow:hidden}
+.rollfx{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:6px;animation:fxout 1.9s forwards}
+.rollfx svg{width:150px;height:150px;animation:dspin .7s cubic-bezier(.2,.8,.2,1)}
+.rollfx polygon{fill:#121825;stroke:#f2c14e;stroke-width:3}
+.rollfx text{font:700 70px var(--display);fill:#ece8de}
+.rollfx.crit polygon{fill:#3a2b08;filter:drop-shadow(0 0 24px #f2c14e)}
+.rollfx.fail polygon{stroke:#e0453a;fill:#2a0f0d}
+.rollfx p{font:700 22px var(--display);color:#fff;background:#000a;padding:4px 14px;border-radius:999px;white-space:nowrap}
+@keyframes fxout{0%,75%{opacity:1}100%{opacity:0;transform:translate(-50%,-60%)}}
+.floater{position:absolute;font:700 26px var(--display);text-shadow:0 2px 8px #000;animation:floatup 1.4s forwards;white-space:nowrap}
+@keyframes floatup{to{opacity:0;transform:translateY(-70px)}}
+.portrait.hit{animation:shake .45s}
+.portrait.hit::after{content:"";position:absolute;inset:0;background:#e0453a;animation:flash .5s forwards}
+.portrait.heal::after{content:"";position:absolute;inset:0;background:#4cc38a;animation:flash .6s forwards}
+.portrait.lvl{box-shadow:0 0 0 2px #f2c14e,0 0 40px #f2c14e}
+@keyframes shake{20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(3px)}}
+@keyframes flash{from{opacity:.55}to{opacity:0}}
+.banner{position:absolute;left:50%;top:30%;transform:translateX(-50%);font:700 clamp(44px,8vw,84px)/1 var(--display);color:#f2c14e;text-shadow:0 0 30px #f2c14e99,0 4px 18px #000;animation:bannerin 2.2s forwards;white-space:nowrap}
+@keyframes bannerin{0%{opacity:0;transform:translateX(-50%) scale(.7)}15%{opacity:1;transform:translateX(-50%) scale(1.05)}25%{transform:translateX(-50%) scale(1)}80%{opacity:1}100%{opacity:0}}
+.rel.fresh{animation:slidein .6s both}
+@keyframes slidein{from{opacity:0;transform:translateX(-24px)}}
+.fate.pulse{animation:pulse 1s}
+@keyframes pulse{50%{box-shadow:0 0 16px #f2c14e}}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--raise);border:1px solid var(--line);padding:10px 16px;border-radius:999px;z-index:90;animation:rise .3s;font-size:15px}
+
+@media (max-width:900px){
+  .hero,.feature{grid-template-columns:1fr}
+  .council{grid-template-columns:1fr 1fr}
+  .steps3{grid-template-columns:1fr}
+}
+@media (max-width:820px){
+  .stage-in{grid-template-columns:1fr}
+  .rail{position:static;max-height:none}
+  .portrait{aspect-ratio:16/10}
+}
+@media (max-width:520px){
+  .council{grid-template-columns:1fr}
+  nav.links{margin-left:0}
+  .wbar input{max-width:none;margin-left:0}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+<style>html,body{margin:0}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}img{max-width:100%}</style>
+</head>
+<body>
+
+
+<header class="top"><div class="wrap">
+  <a class="mark" href="#home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 4h8M9 4v2M15 4v2M7 6h10l-1 11H8L7 6zM10 20h4M12 17v3"/><path d="M12 9c1.6 1.6 1.6 3.4 0 5-1.6-1.6-1.6-3.4 0-5z" fill="currentColor" stroke="none"/></svg>Lanternhall</a>
+  <nav class="links" aria-label="Main">
+    <a href="#worlds" data-nav="worlds">Worlds</a>
+    <a href="#characters" data-nav="characters">Characters</a>
+    <a href="#guide" data-nav="guide">How to play</a>
+    <a href="#play" data-nav="play" id="navPlay" hidden>Table</a>
+    <button class="btn primary small" id="continueBtn" hidden>Continue story</button>
+  </nav>
+</div></header>
+
+<!-- HOME -->
+<main id="v-home" class="wrap" hidden>
+  <div class="hero">
+    <div>
+      <p class="label">AI tabletop roleplaying · solo or with friends · free</p>
+      <h1>Lantern<em>hall</em></h1>
+      <p class="lede">Pick a world, make a character, and a council of AIs runs the game. One narrates, one remembers, one gives every stranger a voice.</p>
+      <div class="cta"><a class="btn primary" href="#worlds">Choose a world</a><a class="btn" href="#characters">Join a friend's table</a><a class="btn" href="#guide">How to play</a></div>
+      <p class="label" style="margin-top:18px" id="heroStats"></p>
+    </div>
+    <div class="d20box">
+      <button class="d20" id="heroDie" aria-label="Roll the d20"><svg viewBox="0 0 200 200" id="heroDieSvg"><polygon points="100,8 182,54 182,146 100,192 18,146 18,54"/><polyline class="facet" points="100,8 52,126 148,126 100,8"/><path class="facet" d="M18,54 L52,126 L18,146 M182,54 L148,126 L182,146 M52,126 L100,192 L148,126"/><text id="heroDieN" x="100" y="118" text-anchor="middle">20</text></svg></button>
+      <p class="d20msg" id="heroMsg">Tap the die. Every story starts with a roll.</p>
+    </div>
+  </div>
+  <section class="block">
+    <div class="sechead"><div><p class="label">How it works</p><h2 class="big">Three steps to the table</h2></div></div>
+    <div class="steps3">
+      <a href="#worlds"><b>1</b><h3>Pick a world</h3><p>Classic fantasy, mafia wars, space opera, weird westerns, or dozens of anime worlds. Or invent your own.</p></a>
+      <a href="#worlds"><b>2</b><h3>Make a character</h3><p>Name them, describe them, and choose from classes made for that world. The AI writes their past.</p></a>
+      <a href="#characters"><b>3</b><h3>Play</h3><p>Solo, or open a table and share a five-letter code so friends can join the same story live.</p></a>
+    </div>
+  </section>
+  <section class="block">
+    <div class="sechead"><div><p class="label">Featured worlds</p><h2 class="big">Where to tonight?</h2></div><a class="btn" href="#worlds" id="browseAll">Browse all worlds</a></div>
+    <div class="tiles" id="homeTiles"></div>
+  </section>
+  <section class="block">
+    <div class="sechead"><div><p class="label">The council</p><h2 class="big">Four AIs, one table</h2></div><p>Each job goes to its own AI, so the story stays sharp as it grows.</p></div>
+    <div class="council">
+      <div class="seat"><span class="sig">I</span><h3>The Game Master</h3><p>Narrates, calls for rolls, hands out loot and XP, and never decides for you.</p></div>
+      <div class="seat"><span class="sig">II</span><h3>The Chronicler</h3><p>Keeps the journal, tracks quests and who you've met, and moves the Fate meter.</p></div>
+      <div class="seat"><span class="sig">III</span><h3>The Voices</h3><p>Every named character can talk back, in their own voice, out loud if you like.</p></div>
+      <div class="seat"><span class="sig">IV</span><h3>The Forge</h3><p>Builds classes for each world, writes backstories, and invents any class you describe.</p></div>
+    </div>
+  </section>
+  <footer><span>Lanternhall</span><span><a href="#worlds">Worlds</a> · <a href="#characters">Characters</a> · <a href="#guide">How to play</a></span><span>Free to play. Stories are written by AI as you play.</span></footer>
+</main>
+
+<!-- WORLDS -->
+<main id="v-worlds" class="wrap view" hidden>
+  <div class="sechead"><div><p class="label">Step 1 of 3</p><h2 class="big">Choose your world</h2></div><p>Tap any world to read about it. Then make a character for it.</p></div>
+  <div class="feature" id="feature"></div>
+  <div class="wbar">
+    <div class="wtabs" role="tablist">
+      <button class="wtab" role="tab" data-f="all" aria-selected="true">All</button>
+      <button class="wtab" role="tab" data-f="anime" aria-selected="false">Anime</button>
+      <button class="wtab" role="tab" data-f="classic" aria-selected="false">Classic</button>
+      <button class="wtab" role="tab" data-f="mine" aria-selected="false">Your worlds</button>
+    </div>
+    <input id="wSearch" type="search" placeholder="Search worlds, genres, tags" aria-label="Search worlds">
+  </div>
+  <div class="tiles" id="worldGrid"></div>
+</main>
+
+<!-- CHARACTERS -->
+<main id="v-characters" class="wrap view" hidden>
+  <div class="sechead"><div><p class="label">Your party</p><h2 class="big">Characters</h2></div><a class="btn primary" href="#worlds">New character</a></div>
+  <div class="joinbar">
+    <label class="field"><span>Join a friend's table</span><input id="joinCode" maxlength="5" placeholder="Table code" style="text-transform:uppercase"></label>
+    <label class="field"><span>Play as</span><select id="joinChar"></select></label>
+    <button class="btn" id="joinGo">Join table</button>
+    <p class="status" id="joinMsg" style="flex-basis:100%"></p>
+  </div>
+  <div class="cgrid" id="charGrid"></div>
+  <p class="muted" style="font-size:13px;margin-top:14px" id="storeNote"></p>
+</main>
+
+<!-- GUIDE -->
+<main id="v-guide" class="wrap view" hidden>
+  <div class="sechead"><div><p class="label">Handbook</p><h2 class="big">How to play</h2></div><a class="btn primary" href="#worlds">Start playing</a></div>
+  <div class="guide">
+    <nav class="gtoc" aria-label="Guide sections">
+      <a href="#guide" data-g="g-start">Getting started</a><a href="#guide" data-g="g-turn">Taking a turn</a><a href="#guide" data-g="g-dice">Dice and checks</a><a href="#guide" data-g="g-char">Your character</a><a href="#guide" data-g="g-quests">Quests</a><a href="#guide" data-g="g-people">People and dialogue</a><a href="#guide" data-g="g-council">The AI council</a><a href="#guide" data-g="g-multi">Playing with friends</a><a href="#guide" data-g="g-tips">Tips</a>
+    </nav>
+    <div class="gbody">
+      <section id="g-start"><h3>Getting started</h3><p>Pick a world on the <a href="#worlds">Worlds</a> page and tap <b>Make a character here</b>. You'll choose a name, shape their face and body, say where they come from, pick one of that world's classes, roll ability scores and add a backstory. Then choose Solo, Open a table, or Join a friend's table.</p></section>
+      <section id="g-turn"><h3>Taking a turn</h3><p>Type what your character does in the box under the story and press <b>Act</b>. Write actions in plain words and speech in quotes:</p><p class="ex">I lean on the bar and slide a coin over. "Who runs the night market?"</p><p>The Game Master answers with what happens next. Suggested actions appear as buttons, but you can always do something else. The Game Master never decides what your character feels or says.</p></section>
+      <section id="g-dice"><h3>Dice and checks</h3><p>When an action could fail, the Game Master asks for a check, such as <b>Dexterity, DC 14</b>. Press the roll button: you roll a d20 and add your modifier. Meet or beat the DC to succeed. A natural 20 always succeeds spectacularly; a natural 1 always goes wrong.</p><p>You can also roll any skill from the <b>Skills</b> tab. Class skills (marked with a dot) add a proficiency bonus of +2, rising as you level.</p></section>
+      <section id="g-char"><h3>Your character</h3><ul><li><b>HP</b> drops when you're hurt and recovers when you rest or heal. At 0 you fall unconscious.</li><li><b>XP</b> comes from overcoming challenges, clever ideas, great roleplay and finished quests. Every level raises your max HP.</li><li><b>Inventory</b> holds gold and gear the Game Master hands out. Equip weapons and armor, or use consumables.</li><li><b>Abilities</b> come from your class. Tap one in the Skills tab to use it.</li></ul></section>
+      <section id="g-quests"><h3>Quests</h3><p>Your first quest usually arrives in the opening scene. For more, open the <b>Quests</b> tab and visit the <b>quest board</b>: three jobs written for where you are right now, each with a giver, a reward and a danger level. Take one and the Game Master weaves it into the story. Objectives tick off as you go, and finishing a quest earns +20 XP.</p></section>
+      <section id="g-people"><h3>People and dialogue</h3><p>Everyone you meet shows up under <b>Relationships</b>, with how they feel about you: Hostile, Wary, Curious, Friendly or Loyal. Open a card to talk to that person directly. Important lines appear as speech cards with the speaker's face; press play to hear them, or turn on <b>Read dialogue aloud</b> in the Game Master tab.</p></section>
+      <section id="g-council"><h3>The AI council</h3><p>Four AIs share the work. The <b>Game Master</b> narrates. The <b>Chronicler</b> keeps the journal, quests and relationships, and moves the <b>Fate</b> meter from Ruin to Mercy based on how your party behaves. The <b>Voices</b> speak for characters. The <b>Forge</b> builds classes, backstories and quests.</p><p>The Game Master tab has shortcuts: Catch me up, Fix a memory (correct something the story got wrong), Rewrite the story (redo the last turn), Explain a rule, and more. You can also ask the Game Master anything out of character.</p></section>
+      <section id="g-multi"><h3>Playing with friends</h3><p>Choose <b>Open a table</b> and share the five-letter code. Friends go to <a href="#characters">Characters</a>, pick who they're playing, enter the code and press Join. Everyone sees the same story, rolls and party. The person who opened the table runs the Game Master; if they leave, anyone can take over.</p></section>
+      <section id="g-tips"><h3>Tips</h3><ul><li>Be specific. "I check the lock for scratches" beats "I look around".</li><li>Talk to people. Named characters remember how you treated them.</li><li>Failure is interesting. A bad roll moves the story somewhere new.</li><li>Use Fix a memory if the story forgets something important.</li></ul></section>
+    </div>
+  </div>
+</main>
+
+<!-- CREATE -->
+<main id="v-create" class="wrap view" hidden><div class="wizard" id="wizard"></div></main>
+
+<!-- PLAY -->
+<section id="v-play" class="stage" hidden>
+ <div class="stage-in">
+  <aside class="rail">
+   <div class="railtabs" role="tablist">
+     <button class="rt" role="tab" data-tab="char" aria-selected="true">Character</button>
+     <button class="rt" role="tab" data-tab="gm" aria-selected="false">Game Master</button>
+   </div>
+   <div id="tab-char" style="display:flex;flex-direction:column;gap:10px">
+     <div class="portrait" id="portrait"><div class="pimg" id="pImg"></div><div class="pname"><b id="pName"></b><span id="pCls"></span></div></div>
+     <div class="bars">
+       <div class="bar hp"><span>HP</span><i><b id="hpFill" style="width:100%"></b></i><em id="hpTxt"></em></div>
+       <div class="bar xp"><span id="lvTxt">LVL 1</span><i><b id="xpFill" style="width:0%"></b></i><em id="xpTxt"></em></div>
+     </div>
+     <div class="ptabs" role="tablist">
+       <button class="ptab" role="tab" data-p="skills" title="Skills" aria-label="Skills" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.2 5.8L20 11l-5.8 2.2L12 19l-2.2-5.8L4 11l5.8-2.2z"/></svg></button>
+       <button class="ptab" role="tab" data-p="inv" title="Inventory" aria-label="Inventory" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 8h14l-1 12H6zM9 8V6a3 3 0 0 1 6 0v2"/></svg></button>
+       <button class="ptab" role="tab" data-p="quests" title="Quests" aria-label="Quests" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 4h11a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6zM6 4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2M9 9h7M9 13h7"/></svg></button>
+       <button class="ptab" role="tab" data-p="rels" title="Relationships" aria-label="Relationships" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M15 14.5c3 0 6 1.8 6 5.5"/></svg></button>
+     </div>
+     <div class="pane" id="pane"></div>
+   </div>
+   <div id="tab-gm" hidden style="flex-direction:column;gap:10px">
+     <div class="box"><b>Game Master</b><span class="muted">Ask anything out of character, or pick a shortcut.</span></div>
+     <div class="cmds" id="cmds"></div>
+     <div class="sendrow"><input id="askGM" maxlength="300" placeholder="Ask the Game Master..."><button class="btn small" id="askGo">Ask</button></div>
+     <div class="box" id="tableBox"><div id="codeBox"></div>
+       <span class="label">Round <span id="roundN">0</span></span>
+       <div class="fatelbl"><span>Ruin</span><span>Fate</span><span>Mercy</span></div>
+       <div class="fate"><i id="fateMark" style="left:50%"></i></div>
+       <div class="lamp" id="lamp-gm"><i></i>Game Master<small class="muted" style="margin-left:auto" data-seat="gm"></small></div>
+       <div class="lamp" id="lamp-ch"><i></i>Chronicler<small class="muted" style="margin-left:auto" data-seat="chronicler"></small></div>
+       <div class="lamp" id="lamp-vo"><i></i>Voices<small class="muted" style="margin-left:auto" data-seat="voices"></small></div>
+       <label class="lamp" id="voiceRow" hidden style="cursor:pointer"><input type="checkbox" id="autoVoice" style="width:auto"> Read dialogue aloud</label>
+     </div>
+     <div class="box"><span class="label">Party</span><div class="party" id="party"></div><button class="btn small" id="claimHost" hidden>Run the Game Master</button></div>
+     <button class="btn small" id="leaveTbl">Leave table</button>
+   </div>
+  </aside>
+  <div class="tale">
+    <div class="talehead"><p class="label" id="tblLabel"></p><h2 id="tblTitle"></h2></div>
+    <div class="log" id="log" aria-live="polite"></div>
+    <div class="next">
+      <p class="tbc">To be continued</p>
+      <p class="whonext"><b id="nextName"></b> decides what happens next</p>
+      <p class="status err" id="aiErr" style="text-align:center"></p>
+      <div class="rolltip" id="rollAsk" hidden></div>
+      <div class="choices" id="choices"></div>
+      <div class="sendrow"><textarea id="actIn" maxlength="600" placeholder="What do you do? Speak in quotes, act in plain words."></textarea><button class="btn primary" id="actSend">Act</button></div>
+      <div class="dice" id="dice"><span class="label">Dice</span></div>
+    </div>
+  </div>
+ </div>
+</section>
+
+<div class="sheet" id="sheet" hidden><div class="sheet-card" role="dialog" aria-modal="true" id="sheetCard"></div></div>
+<div id="wakeHost"></div>
+<div id="fx" aria-hidden="true"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="/claude-shim.js"></script>
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+const store = { get(k, d){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } }, set(k, v){ try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
+const rid = () => Math.random().toString(36).slice(2, 10);
+const d = n => 1 + Math.floor(Math.random() * n);
+const mod = v => Math.floor(((+v || 10) - 10) / 2);
+const fmtMod = m => (m >= 0 ? "+" : "") + m;
+const hashStr = s => [...String(s)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 11);
+const STATS = ["STR","DEX","CON","INT","WIS","CHA"];
+const STATNAME = { STR:"Strength", DEX:"Dexterity", CON:"Constitution", INT:"Intelligence", WIS:"Wisdom", CHA:"Charisma" };
+const SKILLS = { STR:["Athletics"], DEX:["Acrobatics","Sleight of Hand","Stealth"], CON:["Endurance"], INT:["Arcana","History","Investigation","Technology"], WIS:["Insight","Medicine","Perception","Survival"], CHA:["Deception","Intimidation","Performance","Persuasion"] };
+const ALLSKILLS = Object.values(SKILLS).flat();
+const CATS = ["Weapon","Armor","Trinket","Consumable","Item"];
+const CAMPAIGNS = [{"id": "sunscour", "name": "Sunscour Reach", "genre": "Desert odyssey", "cat": "classic", "h": [30, 18], "tags": ["Survival", "Ruins", "Caravans"], "premise": "A sea of glass-sand where caravans of the Salt Kings cross between walled oasis-cities. Every forty years the dunes uncover the Sleeping Engine, a buried clockwork sphinx that answers one question for whoever reaches it first. This is the fortieth year, and every caravan is racing."}, {"id": "manawell", "name": "The Last Manawell", "genre": "Rationed magic", "cat": "classic", "h": [195, 250], "tags": ["Arcane", "Politics", "Mystery"], "premise": "Magic flows from one well beneath the city of Vellum, piped into homes like water and metered by the Ministry of Tides. The well is running dry, the wealthy are hoarding spells, and something at the bottom of the well has started to speak."}, {"id": "syndicate", "name": "Velvet Syndicate", "genre": "Mafia war", "cat": "classic", "h": [350, 0], "tags": ["Crime", "Betrayal", "Noir"], "premise": "Cinderport, a rain-soaked harbor city split between five crime families. The old Don of the Marchetti line was found dead in a locked opera box, and every family blames another. The party works for whoever pays, until the war forces them to choose a side."}, {"id": "expanse", "name": "Hollow Crown Expanse", "genre": "Space opera", "cat": "classic", "h": [275, 235], "tags": ["Starships", "Psychic orders", "Warlords"], "premise": "The star-empire of the Hollow Crown collapsed overnight when its emperor's mind, uploaded into the jump-gate network, went silent. Warlords, smugglers and the psychic order of the Lantern Wardens race to find the single gate that still answers."}, {"id": "drowned", "name": "The Drowned Bells", "genre": "Coastal horror", "cat": "classic", "h": [170, 190], "tags": ["Dread", "Investigation", "Folklore"], "premise": "In the fishing town of Greywater, the bells of a church that sank a century ago have started ringing under the tide. Each night they ring, someone in town forgets their own name. Slow-burn dread, never gratuitous gore."}, {"id": "ashenblade", "name": "Ashen Blade Academy", "genre": "Demon-hunter school", "cat": "anime", "h": [0, 330], "tags": ["Swords", "Demons", "Rivals"], "premise": "Students at Ashen Blade Academy forge a soul-blade from their worst memory, then hunt the Hollowed, demons that wear the faces of people they've eaten. First-years are sent on real hunts. Not all of them come back."}, {"id": "ninthsky", "name": "Gate of the Ninth Sky", "genre": "Cultivation saga", "cat": "anime", "h": [45, 280], "tags": ["Martial arts", "Sects", "Power climb"], "premise": "Nine heavens hang above the mortal world, and cultivators climb them by refining qi and surviving tribulation lightning. You begin as an outer disciple of a declining sect with a cracked spiritual root and one strange ancient ring."}, {"id": "lastboss", "name": "Reborn as the Dungeon's Final Boss", "genre": "Isekai", "cat": "anime", "h": [280, 320], "tags": ["Isekai", "Dungeon", "Comedy"], "premise": "You died in an ordinary life and woke up as the final boss of a dungeon, with a level cap, a goblin secretary and a guild of heroes planning to raid you in thirty days. Build traps, recruit monsters, or befriend the heroes before they arrive."}, {"id": "ironseraph", "name": "Iron Seraph", "genre": "Mecha war", "cat": "anime", "h": [210, 220], "tags": ["Mecha", "Pilots", "Kaiju"], "premise": "The last arcology survives because teenage pilots sync their nervous systems to giant machines called Seraphs. Every sortie against the colossal Choir costs a pilot a memory. Command wants more sorties."}, {"id": "saltcrown", "name": "Saltcrown Seas", "genre": "Pirate adventure", "cat": "anime", "h": [190, 20], "tags": ["Pirates", "Islands", "Treasure"], "premise": "A sky-ocean of floating islands, where pirate crews chase the Drowned King's crown, said to grant command of every wind. Relic-hearts give strange powers to anyone who swallows one, at the price of never swimming again."}, {"id": "ninesmokes", "name": "Village of Nine Smokes", "genre": "Ninja clans", "cat": "anime", "h": [15, 140], "tags": ["Ninja", "Clans", "Sealed beasts"], "premise": "Nine hidden villages keep a fragile peace, each guarding a sealed beast-spirit. Shinobi channel ink-chakra through hand seals to fight. You are a fresh squad on your first real mission when your village's beast seal begins to crack."}, {"id": "capeworks", "name": "Capeworks High", "genre": "Superhero school", "cat": "anime", "h": [215, 45], "tags": ["Powers", "School", "Villains"], "premise": "Most teens develop a Gift by fifteen. Capeworks High trains the best into licensed heroes. You're in Class 1-C, the class everyone forgets, and a villain league just chose your school's sports festival as its stage."}, {"id": "wildbound", "name": "Wildbound League", "genre": "Monster taming", "cat": "anime", "h": [95, 50], "tags": ["Creature bonds", "Journey", "League"], "premise": "In the region of Aurela, everyone over ten may bond with a spirit beast and set out to challenge the eight Shrine Wardens. Your partner creature hatched from an egg nobody could identify, and a syndicate wants it back."}, {"id": "ferrycorps", "name": "The Ferry Corps", "genre": "Soul reapers", "cat": "anime", "h": [255, 200], "tags": ["Afterlife", "Swords", "Spirits"], "premise": "Souls that linger turn into Remnants, hungry spirits that devour the living. The Ferry Corps are reapers who cut them loose and guide them across. You just died, and the Corps offered you a uniform instead of an afterlife."}, {"id": "babel", "name": "Babel Online", "genre": "Death-game VR", "cat": "anime", "h": [200, 240], "tags": ["VR", "Survival", "Floors"], "premise": "Ten thousand players logged into a full-dive VR tower and found the logout button gone. Clear all one hundred floors to escape. Die in the game and you don't wake up. Floor one's boss room opens tomorrow."}, {"id": "starlit", "name": "Starlit Covenant", "genre": "Magical girls", "cat": "anime", "h": [320, 280], "tags": ["Transformation", "Wishes", "Bittersweet"], "premise": "A small talking star grants any wish to kids who sign its covenant, and in return they fight the Weepers, nightmares made of grief. Nobody tells new recruits what happens when their soul-gem goes dark."}, {"id": "neonronin", "name": "Neon Ronin 2099", "genre": "Cyberpunk", "cat": "anime", "h": [300, 190], "tags": ["Chrome", "Megacorps", "Swords"], "premise": "Neo-Edo, 2099. Corporations own the skyline, and cybernetic ronin sell their blades to whoever pays. A data-shard holding a dead CEO's mind just fell into your hands, and three corporations want it."}, {"id": "thousandth", "name": "The Thousandth Duel", "genre": "Samurai era", "cat": "anime", "h": [10, 25], "tags": ["Samurai", "Yokai", "Honor"], "premise": "A wandering swordsman has sworn to fight a thousand duels to win back a stolen name. The land is full of yokai, warlords and cursed blades. This is duel nine hundred and ninety-one."}, {"id": "hundredghost", "name": "Hundred Ghost Alley", "genre": "Paranormal detectives", "cat": "anime", "h": [160, 260], "tags": ["Yokai", "Mystery", "Urban legends"], "premise": "A narrow alley in Tokyo collects a new ghost every night. You run a two-person paranormal agency above a noodle shop, taking cases nobody else will. Rent is due, and a client just walked in already dead."}, {"id": "tenkai", "name": "Tenkai Tournament", "genre": "Martial-arts tournament", "cat": "anime", "h": [30, 5], "tags": ["Fighting", "Training arcs", "Rivals"], "premise": "Every ten years the strongest fighters on earth meet on a floating stone ring for the Tenkai Tournament. The winner gets one wish from a sleeping dragon god. You have three months to train, and your master just vanished."}, {"id": "stagestars", "name": "Stage of Stars", "genre": "Idol fantasy", "cat": "anime", "h": [330, 300], "tags": ["Music", "Idols", "Shadows"], "premise": "By day you are a struggling idol group. By night your songs become weapons against Static, creatures that feed on despair in Shibuya's crowds. The biggest concert of your career is the same night the Static plan their rise."}, {"id": "stormwall", "name": "Stormwall", "genre": "Siege survival", "cat": "anime", "h": [210, 15], "tags": ["Walls", "Monsters", "Military"], "premise": "Humanity lives inside three rings of walls, safe from the Living Storms, hurricanes with minds and hunger. Scouts ride out on gliders to map what's left. The outer wall just cracked, and you're on scout duty."}, {"id": "gilded", "name": "The Gilded Exchange", "genre": "Alchemy", "cat": "anime", "h": [40, 10], "tags": ["Alchemy", "Military", "Sacrifice"], "premise": "Alchemists can turn lead to gold or flesh to stone, but every transmutation costs the alchemist a memory. The State corps wants your talent. Someone has been using alchemy that costs other people's memories instead."}, {"id": "pactdivision", "name": "Pact Division", "genre": "Devil hunters", "cat": "anime", "h": [5, 350], "tags": ["Devils", "Contracts", "Dark comedy"], "premise": "Every fear people share becomes a devil, and the more people fear something, the stronger its devil. Pact Division hunters make contracts with weaker devils to kill the strong ones. Your contract devil wants payment in your favorite food. Forever."}, {"id": "bluecomet", "name": "Blue Comet Bounty", "genre": "Space bounty hunters", "cat": "anime", "h": [220, 30], "tags": ["Bounties", "Jazz noir", "Spaceships"], "premise": "A broke crew of bounty hunters drifts between colonies in a rusting freighter called the Blue Comet. The next bounty is worth enough to fix the engines, but the target is someone from your past."}, {"id": "clubroom", "name": "Clubroom 404", "genre": "School mystery", "cat": "anime", "h": [50, 200], "tags": ["School", "Urban legends", "Slice of life"], "premise": "The Occult Research Club has three members and is about to be shut down. To save it, you investigate the seven mysteries of Hoshizora High. Mystery number four just walked into the clubroom and asked to join."}, {"id": "dragonrider", "name": "Dragon Rider Corps", "genre": "Sky cavalry", "cat": "anime", "h": [15, 220], "tags": ["Dragons", "Academy", "War"], "premise": "Cadets of the Dragon Rider Corps bond with hatchlings that choose them at the Hatching. Most cadets don't survive training. Yours chose you, and it's a breed everyone thought went extinct."}, {"id": "villainess", "name": "Reborn as the Villainess", "genre": "Otome isekai", "cat": "anime", "h": [340, 20], "tags": ["Romance", "Court intrigue", "Comedy"], "premise": "You woke up inside your favorite dating-sim game as the villainess fated to be exiled at the graduation ball. You know every route, every secret, and every doom flag. Now change the ending."}, {"id": "smallmonster", "name": "Smallest Monster, Biggest Kingdom", "genre": "Kingdom builder", "cat": "anime", "h": [120, 180], "tags": ["Isekai", "Nation building", "Monsters"], "premise": "Reborn as the weakest monster in a fantasy world, you can absorb the skills of whatever you eat. Goblins, wolves and a lonely dragon have started calling you chief. Time to build a nation."}, {"id": "adrift", "name": "Classroom Adrift", "genre": "Survival isekai", "cat": "anime", "h": [150, 200], "tags": ["Survival", "Classmates", "Skills"], "premise": "Your entire class was summoned to another world mid-lesson and dropped on a monster-filled island, each with one random skill. Yours seems useless. The class president has started making rules."}, {"id": "highroller", "name": "High Roller Underworld", "genre": "Gambling thriller", "cat": "anime", "h": [355, 280], "tags": ["Gambling", "Mind games", "Debt"], "premise": "Drowning in someone else's debt, you are offered one way out: a night of underground games on a luxury ship where losers pay with years of their life. Reading people is your only weapon."}, {"id": "bloom", "name": "After the Bloom", "genre": "Post-apocalypse", "cat": "anime", "h": [100, 130], "tags": ["Ruins", "Road trip", "Hope"], "premise": "Twenty years ago giant flowers bloomed overnight and swallowed every city. Survivors ride motorbikes through the overgrown highways trading seeds and stories. You've heard rumors of a city the Bloom never touched."}, {"id": "clockwork", "name": "Clockwork Capital", "genre": "Steampunk detective", "cat": "anime", "h": [35, 190], "tags": ["Steampunk", "Automatons", "Mystery"], "premise": "In a gaslit capital of airships and brass, an inspector teams up with an automaton who has started to dream. Someone is murdering inventors and leaving behind perfect clockwork hearts."}, {"id": "foxshrine", "name": "Fox Spirit Shrine", "genre": "Yokai romance-comedy", "cat": "anime", "h": [25, 340], "tags": ["Spirits", "Romance", "Festivals"], "premise": "You inherited a crumbling mountain shrine and accidentally signed a contract with a nine-tailed fox spirit who now insists you're married. Local yokai bring their problems to your door. The shrine festival is in a week."}, {"id": "galaxia", "name": "Grand Prix Galaxia", "genre": "Mecha racing", "cat": "anime", "h": [190, 290], "tags": ["Racing", "Mechs", "Rivals"], "premise": "The Grand Prix Galaxia races transforming mechs through asteroid fields, gravity storms and planet rings. Your team is broke, your mech is secondhand, and the championship team's ace was your old partner."}, {"id": "dustiron", "name": "Dust & Iron", "genre": "Weird west", "cat": "classic", "h": [28, 15], "tags": ["Frontier", "Outlaws", "Strange relics"], "premise": "The railroad reached Calvary Flats the same week a meteor did. Now the town's silver mine whispers at night, outlaws ride horses with glass eyes, and the sheriff just quit. Somebody has to wear the badge."}, {"id": "gildedheist", "name": "The Gilded Heist", "genre": "Heist caper", "cat": "classic", "h": [45, 280], "tags": ["Heist", "Con artists", "Casino city"], "premise": "Aurum Spire is a casino city floating above the clouds, owned by a man who has never lost a bet. In seven days he auctions the Crown of Tides. Your crew has a plan, a grudge and almost none of the money they need."}, {"id": "olympusfallen", "name": "Olympus Fallen", "genre": "Mythic odyssey", "cat": "classic", "h": [48, 210], "tags": ["Gods", "Monsters", "Islands"], "premise": "The old gods died in a single night, and their colossal bodies became islands in a wine-dark sea. Heroes sail between them, mining divine bones for miracles. One of the gods is not as dead as everyone thinks."}, {"id": "deepwater", "name": "Deepwater Station", "genre": "Undersea sci-fi horror", "cat": "classic", "h": [185, 215], "tags": ["Isolation", "Science", "Dread"], "premise": "Six kilometers under the ocean, research station Hadal-9 stopped answering. You're the relief crew. The airlock opens onto flickering lights, a half-eaten dinner, and a message scrawled on the wall: DON'T LET IT HEAR YOU THINK."}, {"id": "thorncrown", "name": "Thorn & Crown", "genre": "Court intrigue", "cat": "classic", "h": [340, 300], "tags": ["Nobles", "Poison", "Politics"], "premise": "The old queen is dying without an heir, and the seven great houses of Valmere are circling. Duels, marriages, poison and secret letters decide who sits on the Thorn Throne. Your house is the smallest at court."}, {"id": "frostfang", "name": "Frostfang Saga", "genre": "Northern saga", "cat": "classic", "h": [205, 215], "tags": ["Raiders", "Giants", "Sagas"], "premise": "Winter has lasted three years. The jarls blame the frost giants, the giants blame the wolf that is eating the sun. Your longship crew has one summer to sail north, find the wolf, and come home with a saga worth singing."}, {"id": "venetta", "name": "Masks of Venetta", "genre": "Masquerade gothic", "cat": "classic", "h": [350, 275], "tags": ["Masks", "Bloodlines", "Canals"], "premise": "In the canal city of Venetta, the nobility never removes their masks, because underneath, some of them stopped aging two hundred years ago. Carnival begins tonight, and someone has started unmasking the ageless."}, {"id": "starportzero", "name": "Starport Zero", "genre": "Space trucker comedy", "cat": "classic", "h": [30, 240], "tags": ["Freight", "Aliens", "Comedy"], "premise": "Your freighter, the Questionable Decision, hauls anything for anyone. This week's cargo is a sealed crate labeled DO NOT FEED, a diplomat with four arms and no patience, and a warrant with your captain's face on it."}, {"id": "jungleteeth", "name": "Jungle of Teeth", "genre": "Lost-world expedition", "cat": "classic", "h": [95, 135], "tags": ["Dinosaurs", "Expedition", "Ruins"], "premise": "Beyond the mist wall lies a valley where giant reptiles never died out. Three expeditions went in. One came back, raving about a city of gold and something that hunts by listening. Your expedition leaves at dawn."}, {"id": "hexwood", "name": "Hexwood", "genre": "Modern witch school", "cat": "classic", "h": [275, 160], "tags": ["Witchcraft", "School", "Secrets"], "premise": "Hexwood Academy looks like an ordinary boarding school in the rainy hills. Students learn spellcraft at night, keep it hidden by day, and never go into the east wing. Last night, the east wing door was found open."}, {"id": "wasteland", "name": "Wasteland Radio", "genre": "Post-apocalypse road", "cat": "classic", "h": [30, 20], "tags": ["Road warriors", "Scavenging", "Radio"], "premise": "Forty years after the bombs, one pirate radio station still plays music across the wasteland. Its DJ just went silent mid-song. Your convoy of scrap-built cars sets out across the Glass Desert to find out why."}, {"id": "dragonhoard", "name": "Dragonhoard Bank", "genre": "Fantasy comedy", "cat": "classic", "h": [45, 0], "tags": ["Comedy", "Dragons", "Bureaucracy"], "premise": "The kingdom's only bank is run by a very old, very polite dragon who keeps everyone's savings in one enormous pile. You are new employees. Today a gold coin went missing, and the dragon has noticed."}, {"id": "hollowing", "name": "The Hollowing", "genre": "Plague survival", "cat": "classic", "h": [80, 200], "tags": ["Survival", "Infection", "Hard choices"], "premise": "A plague called the Hollowing turns people into quiet, sleepwalking husks that wake when they hear a heartbeat. Your small band holds an old lighthouse on the coast. Supplies last ten days. The radio says there is a cure on an island to the south."}, {"id": "signallost", "name": "Signal Lost", "genre": "1980s small-town mystery", "cat": "classic", "h": [300, 250], "tags": ["Mystery", "Aliens", "Friendship"], "premise": "Summer, 1986, in the town of Pine Hollow. The radio telescope on the ridge picked up a signal that spells out the names of four local kids. You are those kids, and your bikes are fast."}, {"id": "battlekitchen", "name": "Battle Kitchen Ascension", "genre": "Cooking battles", "cat": "anime", "h": [15, 0], "tags": ["Cooking", "Tournaments", "Rivals"], "premise": "At the Celestial Culinary Academy, a perfect dish can unleash real power: a curry that summons storms, a dessert that heals wounds. The annual Ascension Cup is coming, and your kitchen station is next to the reigning champion's."}, {"id": "nightbus", "name": "Night Bus Exorcists", "genre": "Spirit road trip", "cat": "anime", "h": [230, 260], "tags": ["Spirits", "Buses", "Bittersweet"], "premise": "Every midnight, Route 0 leaves the last stop with no timetable and no driver anyone can see. It carries lost spirits to the other side, and the living conductors keep the angry ones in line. Tonight is your first shift."}, {"id": "arcanaduel", "name": "Arcana Duel Academy", "genre": "Card battlers", "cat": "anime", "h": [280, 230], "tags": ["Card duels", "Summons", "Academy"], "premise": "At Arcana Academy, duelists summon living cards to fight. Your deck was a gift from a grandparent who vanished, and one card in it is blank. Tonight it started glowing."}, {"id": "ranke", "name": "Rank-E Hero Agency", "genre": "Hero agency comedy", "cat": "anime", "h": [55, 215], "tags": ["Heroes", "Comedy", "Monsters"], "premise": "Your hero agency is ranked E, the lowest there is. You share an office with a ramen shop, your only client is a lost-cat lady, and the ranking board just announced surprise evaluations. Time to fight something big."}, {"id": "endlessspire", "name": "The Endless Spire", "genre": "Tower climbing", "cat": "anime", "h": [265, 230], "tags": ["Tower", "Floors", "Climbers"], "premise": "A tower with no top fell from the sky a hundred years ago. Each floor is a new world with its own rules and a guardian. Climbers who reach a new floor earn a wish. The record is floor ninety-nine. You start on floor one."}, {"id": "kaijurangers", "name": "Kaiju Rangers", "genre": "Sentai mecha", "cat": "anime", "h": [355, 215], "tags": ["Team", "Combining robots", "Kaiju"], "premise": "Five teens with nothing in common were chosen by five robot beasts that combine into one giant guardian. Every week a new kaiju rises from the bay. The team's leader just quit, and the next one is already surfacing."}, {"id": "custom", "name": "Your own premise", "genre": "Built on the spot", "cat": "custom", "h": [45, 220], "tags": ["Anything"], "premise": ""}];
+const FALLBACK_CLASSES = [
+  { name:"Vanguard", blurb:"Front-line fighter who protects allies", hitDie:10, primary:"STR", bonus:{STR:2,CON:1,INT:-1}, skills:["Athletics","Intimidation","Endurance"], abilities:[{name:"Hold the Line",desc:"Allies beside you take half damage from the next hit."},{name:"Rally",desc:"Restore 1d8 HP to an ally once per scene."}], kit:[{name:"Longsword",cat:"Weapon"},{name:"Scale vest",cat:"Armor"},{name:"Healing tonic",cat:"Consumable"}] },
+  { name:"Shade", blurb:"Quiet infiltrator who strikes from cover", hitDie:8, primary:"DEX", bonus:{DEX:2,INT:1,STR:-1}, skills:["Stealth","Sleight of Hand","Perception"], abilities:[{name:"Vanish",desc:"Disappear when no one is watching you directly."},{name:"Low Blow",desc:"Extra 1d6 damage against a distracted foe."}], kit:[{name:"Twin knives",cat:"Weapon"},{name:"Lockpicks",cat:"Item"},{name:"Smoke pellet",cat:"Consumable"}] },
+  { name:"Arcanist", blurb:"Scholar of hidden forces", hitDie:6, primary:"INT", bonus:{INT:2,WIS:1,CON:-1}, skills:["Arcana","History","Investigation"], abilities:[{name:"Spark",desc:"Hurl raw force for 1d10 damage."},{name:"Read the Weave",desc:"Sense magic or strange power nearby."}], kit:[{name:"Focus staff",cat:"Weapon"},{name:"Notebook of sigils",cat:"Trinket"},{name:"Ink of warding",cat:"Consumable"}] }
+];
+const ERRCOPY = { not_granted:"AI is turned off for this page. Allow it from the page's permissions to play.", sampling_disabled:"AI isn't available on this account.", rate_limited:"The council needs a short rest. Try again in a minute.", session_expired:"Sign in again to keep playing.", refused:"The Game Master won't run that. Try a different action.", invalid_json:"The answer came back garbled. Try again.", unavailable:"The AI server isn't reachable right now. Try again in a moment." };
+const errText = e => ERRCOPY[e && e.code] || "Something went wrong reaching the AI. Try again.";
+function toast(t){ const n = el("div","toast",t); document.body.append(n); setTimeout(() => n.remove(), 2600); }
+
+/* ---------- platform ---------- */
+let SAMPLE = null, DB = null, USER = null, ROOM = null, TTS = null, UID = null;
+const ready = (async () => {
+  if (!window.claude || !claude.use) return;
+  const [s, db, u, r, t] = await Promise.all(["sample","db","user","room","tts"].map(n => claude.use(n).catch(() => null)));
+  SAMPLE = s; DB = db; USER = u; ROOM = r; TTS = t;
+  if (USER) { try { UID = await USER.id(); } catch {} }
+  const AIN = { anthropic:"Claude", openai:"GPT", gemini:"Gemini" };
+  const cc = window.lhCouncil; if (cc) document.querySelectorAll("[data-seat]").forEach(n => n.textContent = AIN[cc[n.dataset.seat]] || "");
+  if (TTS) { $("#voiceRow").hidden = false; document.querySelectorAll(".say .play").forEach(b => b.hidden = false); }
+})();
+
+/* ---------- data ---------- */
+let chars = [], myWorlds = [];
+const colPath = () => "data/users/" + UID;
+async function loadData(){
+  await ready;
+  if (DB && UID) {
+    try { const snap = await DB.collection(colPath()).get(); const all = snap.docs.map(x => ({ id:x.id, ...x.data() })); chars = all.filter(x => x.kind !== "world"); myWorlds = all.filter(x => x.kind === "world"); $("#storeNote").textContent = "Characters and worlds are saved to your account, private to you."; rerender(); return; } catch {}
+  }
+  chars = store.get("lh.chars", []); myWorlds = store.get("lh.worlds", []);
+  $("#storeNote").textContent = "Characters and worlds are saved in this browser.";
+  rerender();
+}
+async function putDoc(obj, list){ if (DB && UID) { try { const { id, ...body } = obj; await DB.collection(colPath()).doc(id).set(body); return; } catch {} } store.set(list === "w" ? "lh.worlds" : "lh.chars", list === "w" ? myWorlds : chars); }
+async function delDoc(id, list){ if (DB && UID) { try { await DB.collection(colPath()).doc(id).delete(); return; } catch {} } store.set(list === "w" ? "lh.worlds" : "lh.chars", list === "w" ? myWorlds : chars); }
+async function saveChar(c){ chars = [...chars.filter(x => x.id !== c.id), c]; await putDoc(c, "c"); }
+async function removeChar(id){ chars = chars.filter(x => x.id !== id); await delDoc(id, "c"); rerender(); }
+async function saveWorld(w){ myWorlds = [...myWorlds.filter(x => x.id !== w.id), w]; await putDoc(w, "w"); }
+async function removeWorld(id){ myWorlds = myWorlds.filter(x => x.id !== id); await delDoc(id, "w"); rerender(); }
+const allWorlds = () => [...CAMPAIGNS.filter(c => c.id !== "custom"), ...myWorlds];
+const worldById = id => allWorlds().find(w => w.id === id);
+function rerender(){ const v = curView(); if (v === "home") renderHome(); if (v === "worlds") renderWorlds(); if (v === "characters") renderChars(); updateContinue(); }
+
+/* ---------- art ---------- */
+const artFor = c => { const [a, b] = c.h || [45, 220]; return `radial-gradient(120% 75% at 85% 0%, hsl(${a} 85% 55% / .95) 0%, transparent 60%), linear-gradient(180deg, hsl(${b} 65% 34%) 0%, hsl(${b} 60% 9%) 100%)`; };
+function paintArt(cv, c){
+  const x = cv.getContext("2d"), W = cv.width, H = cv.height, name = c.name || "?";
+  const s = hashStr(name + (c.id || "")), h = [0, 18, 200, 268, 340, 160][s % 6];
+  const g = x.createRadialGradient(W/2, H*.38, 10, W/2, H/2, W); g.addColorStop(0, `hsl(${h} 70% 38%)`); g.addColorStop(.55, `hsl(${h} 60% 14%)`); g.addColorStop(1, "#05070c");
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+  x.globalAlpha = .16; x.strokeStyle = `hsl(${h} 80% 70%)`; for (let i = 0; i < 9; i++) { x.beginPath(); x.arc(W/2, H*.42, W*.1 + i * W*.07, 0, Math.PI * 2); x.stroke(); } x.globalAlpha = 1;
+  x.fillStyle = "#000"; x.beginPath(); x.ellipse(W/2, H*.44, W*.19, H*.2, 0, 0, Math.PI * 2); x.fill(); x.beginPath(); x.ellipse(W/2, H, W*.4, H*.37, 0, Math.PI, 0); x.fill();
+  x.fillStyle = `hsl(${h} 90% 70%)`; x.font = `700 ${Math.round(W*.37)}px 'Grenze Gotisch', Georgia, serif`; x.textAlign = "center"; x.fillText(name.trim()[0]?.toUpperCase() || "?", W/2, H*.54);
+}
+function picInto(box, c){ box.textContent = ""; box.style.backgroundImage = ""; if (c.portrait) box.style.backgroundImage = `url("${c.portrait}")`; else if (c.avatar) box.innerHTML = avatarSVG(c.avatar); else { const cv = el("canvas"); cv.width = 320; cv.height = 400; box.append(cv); paintArt(cv, c); } }
+function shrinkImage(file){
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => { const W = 320, H = 400, c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d"); const sc = Math.max(W / img.width, H / img.height), w = img.width * sc, h = img.height * sc; x.drawImage(img, (W - w) / 2, (H - h) / 2, w, h); URL.revokeObjectURL(url); res(c.toDataURL("image/jpeg", 0.78)); };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(); }; img.src = url;
+  });
+}
+
+/* ---------- face & body creator ---------- */
+const AV = {
+  skin:["#ffe3cc","#f6cba5","#e9b38c","#d39a72","#b97b52","#935a37","#6e4026","#4b2b18"],
+  hairC:["#141414","#3b2416","#6a4325","#a5682f","#dcb46c","#efe2c4","#b3261e","#e05a9b","#3f6fd8","#2f9e8f","#e8e8f0","#7d52c9"],
+  eyeC:["#3a2a1e","#6b4423","#3f7a3a","#2f6fb0","#7a8a99","#d19a1e","#c2201a","#8f4bd6","#36c6d6"],
+  outC:["#7a1f1f","#24425f","#2f5b3a","#3a2f52","#5c4a2e","#1c1c22","#8a8f99","#b8862f","#d9d4c8"],
+  bg:[0,25,45,150,200,230,270,320],
+  face:["oval","round","square","sharp"], eyes:["round","almond","sharp","sleepy"], brows:["soft","straight","fierce","arched"],
+  hair:["bald","buzz","short","spiky","swept","bob","long","ponytail","braids","afro","bun","mohawk"],
+  facial:["none","stubble","moustache","beard","goatee"], marks:["none","eye scar","cheek scar","freckles","face paint","whiskers"],
+  build:["slim","average","athletic","broad"], outfit:["tunic","armor","robe","jacket","hoodie","suit"], extra:["none","eyepatch","glasses","headband","horns","earrings","mask"]
+};
+const AVWORDS = {
+  skin:["very fair","fair","light tan","warm tan","bronze","brown","deep brown","dark"],
+  hairC:["black","dark brown","brown","auburn","blond","platinum","red","pink","blue","teal","silver","violet"],
+  eyeC:["dark brown","brown","green","blue","grey","amber","red","violet","glowing cyan"],
+  outC:["crimson","navy","forest green","plum","leather-brown","black","steel-grey","gold","off-white"]
+};
+const pickOne = a => a[Math.floor(Math.random() * a.length)];
+function randomAvatar(){ return { skin:pickOne(AV.skin), hairC:pickOne(AV.hairC.slice(0,7)), eyeC:pickOne(AV.eyeC), outC:pickOne(AV.outC), bg:pickOne(AV.bg), face:pickOne(AV.face), eyes:pickOne(AV.eyes), brows:pickOne(AV.brows), hair:pickOne(AV.hair.slice(1)), facial:Math.random() < .75 ? "none" : pickOne(AV.facial), marks:Math.random() < .65 ? "none" : pickOne(AV.marks), build:pickOne(AV.build), outfit:pickOne(AV.outfit), extra:Math.random() < .75 ? "none" : pickOne(AV.extra) }; }
+function cleanAvatar(a0){
+  a0 = a0 || {}; const ok = (v, l, d) => l.includes(v) ? v : d, col = (v, l, d) => l.includes(v) ? v : d;
+  return { skin:col(a0.skin, AV.skin, "#d39a72"), hairC:col(a0.hairC, AV.hairC, "#141414"), eyeC:col(a0.eyeC, AV.eyeC, "#3a2a1e"), outC:col(a0.outC, AV.outC, "#24425f"), bg:AV.bg.includes(+a0.bg) ? +a0.bg : 200,
+    face:ok(a0.face, AV.face, "oval"), eyes:ok(a0.eyes, AV.eyes, "round"), brows:ok(a0.brows, AV.brows, "soft"), hair:ok(a0.hair, AV.hair, "short"), facial:ok(a0.facial, AV.facial, "none"),
+    marks:ok(a0.marks, AV.marks, "none"), build:ok(a0.build, AV.build, "average"), outfit:ok(a0.outfit, AV.outfit, "tunic"), extra:ok(a0.extra, AV.extra, "none") };
+}
+function describeAvatar(a0){
+  const a = cleanAvatar(a0), w = (k) => AVWORDS[k][AV[k].indexOf(a[k])] || "";
+  const parts = [`${w("skin")} skin`, a.hair === "bald" ? "bald" : `${w("hairC")} ${a.hair} hair`, `${w("eyeC")} ${a.eyes} eyes`, `${a.face} face`, `${a.build} build`, `wearing a ${w("outC")} ${a.outfit}`];
+  if (a.facial !== "none") parts.push(a.facial === "stubble" ? "stubble" : `a ${a.facial}`);
+  if (a.marks !== "none") parts.push(a.marks);
+  if (a.extra !== "none") parts.push(a.extra === "horns" ? "small horns" : a.extra);
+  return parts.join(", ");
+}
+function shade(hex, f){ const n = parseInt(hex.slice(1), 16); let r = n >> 16, g = n >> 8 & 255, b = n & 255; const t = f < 0 ? 0 : 255, p = Math.abs(f); r = Math.round((t - r) * p + r); g = Math.round((t - g) * p + g); b = Math.round((t - b) * p + b); return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1); }
+function avatarSVG(a0, crop){
+  const a = cleanAvatar(a0), uid = "g" + Math.random().toString(36).slice(2, 8);
+  const S = a.skin, SD = shade(S, -.2), H = a.hairC, HD = shade(H, -.3), HL = shade(H, .3), O = a.outC, OD = shade(O, -.32), OL = shade(O, .22), E = a.eyeC;
+  const w = { slim:92, average:112, athletic:128, broad:148 }[a.build], fw = { oval:62, round:68, square:66, sharp:60 }[a.face];
+  const mirror = s => `${s}<g transform="translate(320,0) scale(-1,1)">${s}</g>`;
+  const P = [];
+  P.push(`<defs><radialGradient id="${uid}" cx="50%" cy="36%" r="75%"><stop offset="0" stop-color="hsl(${a.bg} 60% 40%)"/><stop offset=".6" stop-color="hsl(${a.bg} 55% 16%)"/><stop offset="1" stop-color="#05070c"/></radialGradient></defs><rect width="320" height="400" fill="url(#${uid})"/>`);
+  const back = { long:"M82 312 C68 180 96 72 160 70 C224 72 252 180 238 312 Z", bob:"M84 238 C76 140 100 74 160 72 C220 74 244 140 236 238 Z", afro:"M160 28 C242 28 272 92 264 152 C258 204 232 232 222 238 L98 238 C88 232 62 204 56 152 C48 92 78 28 160 28Z", ponytail:"M206 106 C264 120 268 238 240 320 C232 252 222 178 196 132Z", bun:"M132 66 a28 28 0 1 0 56 0 a28 28 0 1 0 -56 0" }[a.hair];
+  if (back) P.push(`<path d="${back}" fill="${H}"/>`);
+  if (a.hair === "braids") for (const x of [100,116]) for (let y = 186; y <= 324; y += 18) P.push(mirror(`<circle cx="${x}" cy="${y}" r="10" fill="${(y / 18) % 2 ? H : HD}"/>`));
+  if (a.outfit === "hoodie") P.push(`<path d="M${160 - w + 16} 340 C${160 - w + 8} 248 108 214 160 214 C212 214 ${160 + w - 8} 248 ${160 + w - 16} 340Z" fill="${OD}"/>`);
+  P.push(`<path d="M137 214 L137 302 L183 302 L183 214Z" fill="${SD}"/>`);
+  P.push(`<path d="M${160 - w} 400 C${160 - w} 334 ${160 - w * .72} 304 134 292 L186 292 C${160 + w * .72} 304 ${160 + w} 334 ${160 + w} 400Z" fill="${O}"/>`);
+  P.push({
+    tunic:`<path d="M134 292 L160 324 L186 292" fill="${SD}" stroke="${OL}" stroke-width="5"/>`,
+    armor:`<path d="M134 292 L186 292 L180 316 L140 316Z" fill="${OL}"/>${mirror(`<ellipse cx="${160 - w + 24}" cy="328" rx="36" ry="22" fill="${OL}" stroke="${OD}" stroke-width="3"/>`)}<path d="M126 344 L194 344 M122 366 L198 366" stroke="${OD}" stroke-width="5"/>`,
+    robe:`<path d="M134 292 L160 368 L186 292" fill="${OD}" stroke="#d9b26a" stroke-width="5"/>`,
+    jacket:`<path d="M136 292 L160 400 L184 292Z" fill="#e9e4da"/><path d="M134 292 L152 344 L142 400 M186 292 L168 344 L178 400" fill="none" stroke="${OD}" stroke-width="7"/>`,
+    hoodie:`<path d="M134 292 L160 316 L186 292" fill="${SD}"/><path d="M150 304 L148 346 M170 304 L172 346" stroke="#e9e4da" stroke-width="3"/>`,
+    suit:`<path d="M136 292 L160 400 L184 292Z" fill="#f2f2f2"/><path d="M160 302 L152 314 L160 364 L168 314Z" fill="#7a1f1f"/><path d="M134 292 L156 354 M186 292 L164 354" stroke="${OD}" stroke-width="8"/>`
+  }[a.outfit]);
+  P.push(mirror(`<ellipse cx="${160 - fw}" cy="178" rx="10" ry="16" fill="${SD}"/>`));
+  if (a.extra === "earrings") P.push(mirror(`<circle cx="${160 - fw}" cy="198" r="5" fill="#f2c14e"/>`));
+  P.push({ oval:`<ellipse cx="160" cy="165" rx="62" ry="78" fill="${S}"/>`, round:`<ellipse cx="160" cy="168" rx="68" ry="72" fill="${S}"/>`,
+    square:`<path d="M94 122 C94 90 124 86 160 86 C196 86 226 90 226 122 L226 190 C226 228 196 246 160 246 C124 246 94 228 94 190Z" fill="${S}"/>`,
+    sharp:`<path d="M100 130 C100 94 126 86 160 86 C194 86 220 94 220 130 L216 180 C210 214 182 246 160 254 C138 246 110 214 104 180Z" fill="${S}"/>` }[a.face]);
+  P.push(mirror(`<ellipse cx="128" cy="200" rx="13" ry="7" fill="#e0607a" opacity=".16"/>`));
+  if (a.marks === "freckles") P.push(mirror([[120,194],[128,198],[136,193],[124,203],[132,206]].map(([x,y]) => `<circle cx="${x}" cy="${y}" r="1.8" fill="${SD}"/>`).join("")));
+  const ey = 172, eye = {
+    round:`<ellipse cx="134" cy="${ey}" rx="12" ry="10" fill="#fff"/><circle cx="134" cy="${ey + 1}" r="7" fill="${E}"/><circle cx="134" cy="${ey + 1}" r="3.2" fill="#111"/><circle cx="136.5" cy="${ey - 2}" r="2" fill="#fff"/><path d="M121 ${ey - 3} Q134 ${ey - 15} 147 ${ey - 3}" stroke="#1a1010" stroke-width="3" fill="none"/>`,
+    almond:`<path d="M120 ${ey} Q134 ${ey - 11} 148 ${ey} Q134 ${ey + 8} 120 ${ey}Z" fill="#fff"/><circle cx="134" cy="${ey - 1}" r="6" fill="${E}"/><circle cx="134" cy="${ey - 1}" r="2.8" fill="#111"/><path d="M120 ${ey} Q134 ${ey - 11} 148 ${ey}" stroke="#1a1010" stroke-width="3" fill="none"/>`,
+    sharp:`<path d="M119 ${ey + 3} L127 ${ey - 9} L149 ${ey - 6} L147 ${ey + 6}Z" fill="#fff"/><ellipse cx="137" cy="${ey}" rx="6.5" ry="8" fill="${E}"/><ellipse cx="137" cy="${ey}" rx="2.6" ry="4.5" fill="#111"/><circle cx="139" cy="${ey - 3}" r="1.8" fill="#fff"/><path d="M116 ${ey + 1} L127 ${ey - 11} L151 ${ey - 7}" stroke="#141010" stroke-width="4" fill="none" stroke-linejoin="round"/>`,
+    sleepy:`<ellipse cx="134" cy="${ey}" rx="12" ry="8" fill="#fff"/><circle cx="134" cy="${ey + 1}" r="6" fill="${E}"/><circle cx="134" cy="${ey + 1}" r="2.8" fill="#111"/><path d="M121 ${ey} Q134 ${ey - 13} 147 ${ey} L147 ${ey - 13} L121 ${ey - 13}Z" fill="${S}"/><path d="M121 ${ey} Q134 ${ey - 4} 147 ${ey}" stroke="#1a1010" stroke-width="3" fill="none"/>`
+  }[a.eyes];
+  P.push(mirror(eye));
+  const BC = a.hair === "bald" ? "#2a1a10" : HD;
+  P.push(mirror({ soft:`<path d="M120 152 Q134 145 148 151" stroke="${BC}" stroke-width="5" fill="none" stroke-linecap="round"/>`, straight:`<path d="M120 150 L148 150" stroke="${BC}" stroke-width="6" stroke-linecap="round"/>`,
+    fierce:`<path d="M118 144 L149 155" stroke="${BC}" stroke-width="6" stroke-linecap="round"/>`, arched:`<path d="M120 154 Q132 138 148 150" stroke="${BC}" stroke-width="5" fill="none" stroke-linecap="round"/>` }[a.brows]));
+  P.push(`<path d="M160 182 Q155 200 163 204" stroke="${SD}" stroke-width="3" fill="none" stroke-linecap="round"/>`);
+  if (a.facial === "stubble") P.push(`<path d="M102 188 C108 232 140 252 160 254 C180 252 212 232 218 188 C202 224 118 224 102 188Z" fill="${HD}" opacity=".35"/>`);
+  if (a.facial === "beard") P.push(`<path d="M98 178 C102 252 140 276 160 278 C180 276 218 252 222 178 C206 214 188 230 160 230 C132 230 114 214 98 178Z" fill="${H}"/>`);
+  if (a.facial === "goatee") P.push(`<path d="M146 230 Q160 264 174 230 Q160 238 146 230Z" fill="${H}"/>`);
+  P.push(`<path d="M146 219 Q160 228 174 219" stroke="#6b2b24" stroke-width="3.5" fill="none" stroke-linecap="round"/>`);
+  if (a.facial === "moustache" || a.facial === "beard") P.push(`<path d="M138 214 Q160 202 182 214 Q170 220 160 213 Q150 220 138 214Z" fill="${H}"/>`);
+  if (a.marks === "eye scar") P.push(`<path d="M120 146 L146 202" stroke="#c2706a" stroke-width="3.5" stroke-linecap="round"/>`);
+  if (a.marks === "cheek scar") P.push(`<path d="M190 196 L208 216 M195 212 L203 200" stroke="#c2706a" stroke-width="3" stroke-linecap="round"/>`);
+  if (a.marks === "face paint") P.push(mirror(`<path d="M116 190 L132 198 M116 200 L132 208" stroke="#b3261e" stroke-width="4" stroke-linecap="round"/>`));
+  if (a.marks === "whiskers") P.push(mirror(`<path d="M110 196 L130 200 M108 204 L130 206 M110 212 L130 211" stroke="#3a2a1e" stroke-width="2.5" stroke-linecap="round"/>`));
+  if (a.extra === "mask") P.push(`<path d="M98 188 C108 242 140 258 160 260 C180 258 212 242 222 188 Q160 200 98 188Z" fill="#1c1c22"/>`);
+  const front = {
+    buzz:"M96 160 C96 100 130 84 160 84 C190 84 224 100 224 160 C214 130 190 112 160 112 C130 112 106 130 96 160Z",
+    short:"M92 170 C88 98 128 76 160 76 C196 76 232 98 228 170 C222 140 212 122 202 116 C186 128 150 124 120 120 C108 130 100 150 92 170Z",
+    spiky:"M90 166 L82 120 L104 112 L98 76 L128 96 L140 58 L160 90 L180 56 L192 94 L222 72 L216 110 L240 118 L230 166 C222 136 200 118 160 116 C122 118 100 136 90 166Z",
+    swept:"M92 168 C86 96 140 68 190 78 C222 86 236 120 230 168 C224 140 214 124 200 118 C170 132 130 112 112 124 C102 136 96 150 92 168Z M112 124 C140 108 180 120 216 98 C192 142 150 148 118 152Z",
+    bob:"M96 146 C98 98 130 80 160 80 C190 80 222 98 224 146 L224 150 L96 150Z",
+    long:"M96 172 C92 100 130 76 160 78 C150 100 128 122 104 178Z M224 172 C228 100 190 76 160 78 C170 100 192 122 216 178Z",
+    ponytail:"M94 160 C92 100 130 80 160 80 C190 80 228 100 226 160 C214 120 190 106 160 106 C130 106 106 120 94 160Z",
+    braids:"M94 160 C92 100 130 80 160 80 C190 80 228 100 226 160 C214 120 190 106 160 106 C130 106 106 120 94 160Z",
+    afro:"M92 162 C92 112 122 94 160 94 C198 94 228 112 228 162 C218 132 200 120 160 120 C120 120 102 132 92 162Z",
+    bun:"M94 160 C92 100 130 80 160 80 C190 80 228 100 226 160 C214 120 190 106 160 106 C130 106 106 120 94 160Z",
+    mohawk:"M142 150 L136 58 L160 34 L184 58 L178 150 C170 118 150 118 142 150Z"
+  }[a.hair];
+  if (a.hair === "mohawk") P.push(`<path d="M98 158 C98 104 130 88 160 88 C190 88 222 104 222 158 C210 130 190 114 160 114 C130 114 110 130 98 158Z" fill="${HD}" opacity=".45"/>`);
+  if (front) P.push(`<path d="${front}" fill="${H}"/><path d="${front}" fill="none" stroke="${HL}" stroke-width="2" opacity=".35"/>`);
+  if (a.extra === "eyepatch") P.push(`<path d="M96 138 L224 162" stroke="#111" stroke-width="4"/><ellipse cx="134" cy="172" rx="17" ry="14" fill="#111"/>`);
+  if (a.extra === "glasses") P.push(`<circle cx="134" cy="172" r="17" fill="#ffffff14" stroke="#222" stroke-width="4"/><circle cx="186" cy="172" r="17" fill="#ffffff14" stroke="#222" stroke-width="4"/><path d="M151 170 L169 170" stroke="#222" stroke-width="4"/>`);
+  if (a.extra === "headband") P.push(`<path d="M96 132 Q160 112 224 132 L224 146 Q160 126 96 146Z" fill="#b3261e"/><path d="M224 138 L252 150 L246 160Z" fill="#8f1d17"/>`);
+  if (a.extra === "horns") P.push(mirror(`<path d="M114 106 C96 74 100 50 116 34 C116 62 126 82 136 98Z" fill="#e8e0cc" stroke="#9c927c" stroke-width="2"/>`));
+  return `<svg viewBox="${crop ? "84 78 152 152" : "0 0 320 400"}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Character portrait">${P.join("")}</svg>`;
+}
+const AVGROUPS = {
+  Face:[["Skin","skin","color"],["Face shape","face"],["Eyes","eyes"],["Eye color","eyeC","color"],["Brows","brows"],["Marks","marks"]],
+  Hair:[["Hairstyle","hair"],["Hair color","hairC","color"],["Facial hair","facial"]],
+  Body:[["Build","build"],["Outfit","outfit"],["Outfit color","outC","color"],["Backdrop","bg","color"]],
+  Extras:[["Accessory","extra"]]
+};
+function buildCreator(host, av, onChange){
+  host.textContent = ""; host.className = "creator";
+  const prev = el("div","cprev"); const side = el("div","cctl");
+  const draw = () => { prev.innerHTML = avatarSVG(av); if (onChange) onChange(av); };
+  const tabs = el("div","row"); const body = el("div","csecs"); let cur = "Face";
+  const renderGroup = () => {
+    body.textContent = "";
+    for (const [label, key, kind] of AVGROUPS[cur]) {
+      const s = el("div","csec"); s.append(el("span","label",label)); const row = el("div","row");
+      for (const o of AV[key]) {
+        const b = kind === "color" ? el("button","sw") : el("button","chip",o); b.type = "button";
+        if (kind === "color") { b.style.background = key === "bg" ? `hsl(${o} 60% 35%)` : o; b.setAttribute("aria-label", `${label}: ${key === "bg" ? "hue " + o : (AVWORDS[key]?.[AV[key].indexOf(o)] || o)}`); }
+        b.setAttribute("aria-pressed", String(av[key] === o));
+        b.addEventListener("click", () => { av[key] = o; row.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x === b))); draw(); });
+        row.append(b);
+      }
+      s.append(row); body.append(s);
+    }
+  };
+  for (const g of Object.keys(AVGROUPS)) { const t = el("button","chip",g); t.type = "button"; t.setAttribute("aria-pressed", String(g === cur)); t.addEventListener("click", () => { cur = g; tabs.querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", String(x === t))); renderGroup(); }); tabs.append(t); }
+  const rnd = el("button","btn small","Randomize"); rnd.type = "button"; rnd.addEventListener("click", () => { Object.assign(av, randomAvatar()); renderGroup(); draw(); });
+  tabs.append(rnd);
+  side.append(tabs, body); host.append(prev, side); renderGroup(); draw();
+}
+function seeded(seed){ let s = (seed >>> 0) || 1; return () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; }
+function npcAvatar(name){ const r = seeded(hashStr(String(name).toLowerCase())); const p = a => a[Math.floor(r() * a.length)]; return { skin:p(AV.skin), hairC:p(AV.hairC), eyeC:p(AV.eyeC), outC:p(AV.outC), bg:p(AV.bg), face:p(AV.face), eyes:p(AV.eyes), brows:p(AV.brows), hair:p(AV.hair), facial:r() < .65 ? "none" : p(AV.facial), marks:r() < .7 ? "none" : p(AV.marks), build:p(AV.build), outfit:p(AV.outfit), extra:r() < .8 ? "none" : p(AV.extra) }; }
+function faceEl(name, avatar, portrait){ const f = el("div","face"); if (portrait) { const i = el("img"); i.src = portrait; i.alt = ""; f.append(i); } else f.innerHTML = avatarSVG(avatar || npcAvatar(name), true); return f; }
+function whoFace(name){
+  if (T.me && name === T.me.name) return faceEl(name, T.me.avatar, T.me.portrait);
+  const peer = (T.peers || []).find(p => p.presence?.char?.name === name);
+  return faceEl(name, peer?.presence?.char?.av || null);
+}
+
+/* ---------- routing ---------- */
+const VIEWS = ["home","worlds","characters","create","play","guide"];
+const curView = () => { const v = (location.hash || "#home").slice(1); return VIEWS.includes(v) ? v : "home"; };
+function route(){
+  let v = curView();
+  if (v === "play" && !T.on) { v = "worlds"; history.replaceState(null, "", "#worlds"); }
+  if (v === "create" && !WZ.world && !WZ.char) { v = "worlds"; history.replaceState(null, "", "#worlds"); }
+  for (const n of VIEWS) $("#v-" + n).hidden = n !== v;
+  document.querySelectorAll("[data-nav]").forEach(a => { if (a.dataset.nav === v || (v === "create" && a.dataset.nav === "worlds")) a.setAttribute("aria-current","page"); else a.removeAttribute("aria-current"); });
+  if (v === "home") renderHome(); if (v === "worlds") renderWorlds(); if (v === "characters") renderChars(); if (v === "create") renderWizard();
+  updateContinue();
+  window.scrollTo(0, 0);
+}
+window.addEventListener("hashchange", route);
+function go(v){ if (location.hash === "#" + v) route(); else location.hash = v; }
+function updateContinue(){
+  $("#navPlay").hidden = !T.on;
+  const last = store.get("lh.last", null), c = last && chars.find(x => x.id === last.charId), w = last && worldById(last.world);
+  const btn = $("#continueBtn");
+  btn.hidden = T.on || !(c && w);
+  if (!btn.hidden) btn.onclick = () => startGame("solo", c, w);
+}
+
+/* ---------- home ---------- */
+const FEATURED = ["sunscour","ashenblade","syndicate","lastboss","expanse","saltcrown","ironseraph","ninesmokes"];
+let spin = 0;
+$("#heroDie").addEventListener("click", () => {
+  const n = d(20); spin += 480; $("#heroDieSvg").style.transform = `rotate(${spin}deg)`;
+  setTimeout(() => { $("#heroDieN").textContent = n; $("#heroMsg").textContent = n === 20 ? "Natural 20. The hall goes quiet." : n === 1 ? "Critical failure. The story just got interesting." : n >= 15 ? `You rolled ${n}. Fortune leans your way.` : n >= 8 ? `You rolled ${n}. Steady enough.` : `You rolled ${n}. Brace yourself.`; }, 450);
+});
+function tile(c, num){
+  const b = el("button","tile"); b.type = "button";
+  b.style.setProperty("--art", artFor(c)); b.style.setProperty("--glow", `hsl(${(c.h||[45])[0]} 85% 55% / .6)`);
+  if (num) b.append(el("span","num",num));
+  b.append(el("span","kind", c.cat === "anime" ? "ANIME" : c.cat === "mine" ? "YOURS" : "CLASSIC"), el("h3",null,c.name), el("p","g",c.genre));
+  b.addEventListener("click", () => openWorld(c));
+  return b;
+}
+function renderHome(){
+  $("#heroStats").textContent = `${allWorlds().length} worlds \u00b7 4 AIs at the table \u00b7 solo or multiplayer \u00b7 free`;
+  const g = $("#homeTiles"); g.textContent = "";
+  FEATURED.forEach((id, i) => { const t = tile(CAMPAIGNS.find(c => c.id === id), String(i + 1)); t.style.animationDelay = i * 40 + "ms"; g.append(t); });
+  $("#browseAll").textContent = `Browse all ${allWorlds().length} worlds`;
+}
+
+/* ---------- worlds ---------- */
+let wFilter = "all", featIdx = 0;
+function renderFeature(){
+  const f = $("#feature"); f.textContent = ""; const c = CAMPAIGNS.find(x => x.id === FEATURED[featIdx]);
+  const art = el("div","fart"); art.style.setProperty("--art", artFor(c)); art.append(el("span","num", String(featIdx + 1)));
+  const b = el("div","fbody"); b.append(el("p","label", c.genre + (c.cat === "anime" ? " · Anime" : " · Classic")), el("h3",null,c.name), el("p","muted",c.premise));
+  const nav = el("div","fnav");
+  const play = el("button","btn primary","Make a character here"); play.addEventListener("click", () => beginCreate(c));
+  const about = el("button","btn","About this world"); about.addEventListener("click", () => openWorld(c));
+  const prev = el("button","btn small","‹"); prev.setAttribute("aria-label","Previous featured world"); prev.addEventListener("click", () => { featIdx = (featIdx + FEATURED.length - 1) % FEATURED.length; renderFeature(); });
+  const next = el("button","btn small","›"); next.setAttribute("aria-label","Next featured world"); next.addEventListener("click", () => { featIdx = (featIdx + 1) % FEATURED.length; renderFeature(); });
+  const dots = el("div","dots"); FEATURED.forEach((_, i) => dots.append(el("i", i === featIdx ? "on" : "")));
+  nav.append(play, about, prev, next, dots); b.append(nav);
+  f.append(art, b);
+}
+function renderWorlds(){
+  renderFeature();
+  const g = $("#worldGrid"); g.textContent = "";
+  const q = $("#wSearch").value.trim().toLowerCase();
+  let list = wFilter === "mine" ? myWorlds : allWorlds().filter(c => wFilter === "all" || c.cat === wFilter);
+  if (q) list = list.filter(c => (c.name + " " + c.genre + " " + (c.tags||[]).join(" ") + " " + c.premise).toLowerCase().includes(q));
+  if (wFilter === "mine" || (wFilter === "all" && !q)) { const m = el("button","tile make"); m.type = "button"; m.append(el("span","plus","+"), el("h3",null,"Create a world"), el("p","g","Your premise, your rules")); m.addEventListener("click", openMaker); g.append(m); }
+  list.forEach((c, i) => { const t = tile(c, String(i + 1)); t.style.animationDelay = Math.min(i, 18) * 25 + "ms"; g.append(t); });
+  if (!list.length && q) g.append(el("p","muted","No worlds match that search."));
+}
+document.querySelectorAll(".wtab").forEach(b => b.addEventListener("click", () => { wFilter = b.dataset.f; document.querySelectorAll(".wtab").forEach(x => x.setAttribute("aria-selected", String(x === b))); renderWorlds(); }));
+$("#wSearch").addEventListener("input", renderWorlds);
+
+document.querySelectorAll("[data-g]").forEach(a => a.addEventListener("click", e => { e.preventDefault(); document.getElementById(a.dataset.g).scrollIntoView({ behavior:"smooth", block:"start" }); }));
+
+/* ---------- sheet ---------- */
+let sheetBack = null;
+function openSheet(title, art, build){
+  sheetBack = document.activeElement;
+  const card = $("#sheetCard"); card.textContent = ""; card.style.setProperty("--art", art);
+  const a = el("div","sheet-art"); a.append(el("h3",null,title));
+  const body = el("div","sheet-body"); build(body);
+  card.append(a, body); $("#sheet").hidden = false;
+  const f = body.querySelector("input,textarea,button"); if (f) f.focus();
+}
+function closeSheet(){ $("#sheet").hidden = true; if (sheetBack && sheetBack.focus) sheetBack.focus(); }
+$("#sheet").addEventListener("click", e => { if (e.target.id === "sheet") closeSheet(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#sheet").hidden) closeSheet(); });
+const fieldOf = (label, node) => { const l = el("label","field"); l.append(el("span",null,label), node); return l; };
+function openWorld(c){
+  openSheet(c.name, artFor(c), body => {
+    body.append(el("p","label",c.genre));
+    const tg = el("div","tags"); (c.tags||[]).forEach(x => tg.append(el("span","tag",x))); body.append(tg, el("p",null,c.premise));
+    const wc = store.get("lh.wc." + c.id, null); if (wc?.length) body.append(el("p","muted","Classes here: " + wc.map(x => x.name).join(", ")));
+    const mine = chars.filter(x => x.world === c.id); if (mine.length) body.append(el("p","muted","Your characters here: " + mine.map(x => x.name).join(", ")));
+    body.append(el("p","muted", (c.cat === "anime" || c.anime) ? "Played with anime energy: big moments, named moves, rivals." : "Played as a grounded tabletop adventure."));
+    const row = el("div","row");
+    const play = el("button","btn primary","Make a character here"); play.addEventListener("click", () => { closeSheet(); beginCreate(c); });
+    const close = el("button","btn","Close"); close.addEventListener("click", closeSheet);
+    row.append(play, close);
+    if (c.cat === "mine") { const del = el("button","btn","Delete world"); del.addEventListener("click", () => { if (!del.dataset.sure) { del.dataset.sure = 1; del.textContent = "Confirm delete"; return; } removeWorld(c.id); closeSheet(); }); row.append(del); }
+    body.append(row);
+  });
+}
+function openMaker(){
+  openSheet("Create a world", artFor({ h:[45,260] }), body => {
+    const nm = el("input"); nm.id = "mkName"; nm.maxLength = 40; nm.placeholder = "Moonlit Rail";
+    const gn = el("input"); gn.id = "mkGenre"; gn.maxLength = 30; gn.placeholder = "Train heist fantasy";
+    const an = el("label","lamp"); const ac = el("input"); ac.type = "checkbox"; ac.id = "mkAnime"; ac.style.width = "auto"; an.append(ac, document.createTextNode(" Play it anime-style"));
+    const pr = el("textarea"); pr.id = "mkPremise"; pr.maxLength = 700; pr.placeholder = "A train that crosses three kingdoms in one night carries a sleeping god in its last car...";
+    const msg = el("p","status");
+    body.append(fieldOf("World name", nm), fieldOf("Genre", gn), fieldOf("Premise", pr), an, msg);
+    const row = el("div","row"); const save = el("button","btn primary","Save world"); const close = el("button","btn","Cancel"); close.addEventListener("click", closeSheet);
+    save.addEventListener("click", async () => {
+      if (!nm.value.trim() || pr.value.trim().length < 20) { msg.textContent = "Give it a name and a premise of at least one sentence."; return; }
+      const w = { id:"w" + rid(), kind:"world", cat:"mine", anime:ac.checked, name:nm.value.trim(), genre:gn.value.trim() || "Original world", premise:pr.value.trim(), tags:["Yours"], h:[Math.floor(Math.random()*360), Math.floor(Math.random()*360)] };
+      await saveWorld(w); closeSheet(); wFilter = "mine"; document.querySelectorAll(".wtab").forEach(x => x.setAttribute("aria-selected", String(x.dataset.f === "mine"))); renderWorlds(); toast(`Saved ${w.name}.`);
+    });
+    row.append(save, close); body.append(row);
+  });
+}
+function askSheet(title, label, placeholder, cta, cb){
+  openSheet(title, artFor({ h:[150,220] }), body => {
+    const t = el("textarea"); t.id = "askField"; t.maxLength = 500; t.placeholder = placeholder;
+    body.append(fieldOf(label, t));
+    const row = el("div","row"); const ok = el("button","btn primary",cta); const no = el("button","btn","Cancel");
+    ok.addEventListener("click", () => { const v = t.value.trim(); if (!v) return; closeSheet(); cb(v); }); no.addEventListener("click", closeSheet);
+    row.append(ok, no); body.append(row);
+  });
+}
+
+/* ---------- characters page ---------- */
+function charMeta(c){ const w = worldById(c.world); return `${c.cls?.name || "Adventurer"} · ${w ? w.name : "Any world"}`; }
+function renderChars(){
+  const g = $("#charGrid"); g.textContent = "";
+  const js = $("#joinChar"); js.textContent = "";
+  if (!chars.length) { g.append(el("div","empty","No characters yet. Pick a world to make your first one.")); const o = el("option",null,"Make a character first"); o.value = ""; js.append(o); }
+  for (const c of [...chars].sort((a, b) => (b.updated || 0) - (a.updated || 0))) {
+    const o = el("option",null,`${c.name} (${c.cls?.name || ""})`); o.value = c.id; js.append(o);
+    const card = el("div","ccard"); const pic = el("div","pic"); picInto(pic, c);
+    const info = el("div","info"); info.append(el("h3",null,c.name), el("div","meta",charMeta(c)));
+    const acts = el("div","acts");
+    const play = el("button","btn primary small","Play"); play.addEventListener("click", () => { const w = worldById(c.world); if (!w) { toast("That world was deleted. Pick a new one."); go("worlds"); return; } WZ = { world:w, char:c, step:"mode", fromChars:true }; go("create"); });
+    const edit = el("button","btn small","Edit"); edit.addEventListener("click", () => editChar(c));
+    const del = el("button","btn small","Delete"); del.addEventListener("click", () => { if (!del.dataset.sure) { del.dataset.sure = 1; del.textContent = "Confirm"; return; } removeChar(c.id); });
+    acts.append(play, edit, del); card.append(pic, info, acts); g.append(card);
+  }
+}
+function editChar(c, after){
+  openSheet("Edit " + c.name, artFor({ h:[hashStr(c.name) % 360, 230] }), body => {
+    const nm = el("input"); nm.id = "edName"; nm.maxLength = 40; nm.value = c.name;
+    const lk = el("textarea"); lk.id = "edLook"; lk.maxLength = 400; lk.value = c.look || "";
+    const og = el("textarea"); og.id = "edOrigin"; og.maxLength = 400; og.value = c.origin || "";
+    const bs = el("textarea"); bs.id = "edStory"; bs.maxLength = 1500; bs.value = c.story?.backstory || "";
+    const pf = el("input"); pf.type = "file"; pf.accept = "image/*"; pf.id = "edPic";
+    const av = { ...(c.avatar || randomAvatar()) }; let avOpen = false;
+    const crHost = el("div"); crHost.hidden = true;
+    const crBtn = el("button","btn small","Edit face & body"); crBtn.addEventListener("click", () => { avOpen = true; crBtn.hidden = true; crHost.hidden = false; buildCreator(crHost, av); });
+    body.append(crBtn, crHost);
+    body.append(fieldOf("Name", nm), fieldOf("Other appearance details", lk), fieldOf("Where they come from", og), fieldOf("Backstory", bs), fieldOf("Portrait (an image you own)", pf));
+    const row = el("div","row"); const save = el("button","btn primary","Save changes"); const close = el("button","btn","Cancel"); close.addEventListener("click", closeSheet);
+    save.addEventListener("click", async () => {
+      if (pf.files[0]) { try { c.portrait = await shrinkImage(pf.files[0]); } catch {} }
+      if (avOpen) { c.avatar = av; if (!pf.files[0]) c.portrait = null; }
+      c.name = nm.value.trim() || c.name; c.look = lk.value.trim(); c.origin = og.value.trim(); c.story = { ...(c.story || {}), backstory: bs.value.trim() }; c.updated = Date.now();
+      await saveChar(c); closeSheet(); toast("Saved."); if (after) after(c); else renderChars();
+    });
+    row.append(save, close); body.append(row);
+  });
+}
+$("#joinGo").addEventListener("click", async () => {
+  const code = $("#joinCode").value.trim().toUpperCase(), c = chars.find(x => x.id === $("#joinChar").value);
+  if (!c) { $("#joinMsg").textContent = "Make a character first, then come back to join."; return; }
+  if (!/^[A-Z0-9]{5}$/.test(code)) { $("#joinMsg").textContent = "Table codes are five letters or numbers."; return; }
+  $("#joinMsg").textContent = "Joining...";
+  const ok = await startGame("join", c, null, code);
+  $("#joinMsg").textContent = ok ? "" : $("#joinMsg").textContent;
+});
+
+/* ---------- create wizard ---------- */
+let WZ = {};
+const STEPS = ["pick","name","look","origin","class","stats","story","mode"];
+const worldClassCache = {};
+function beginCreate(w){ WZ = { world:w, step:"pick", draft:null, classes:null, openCls:null }; go("create"); }
+function newDraft(){ WZ.draft = { id:rid(), world:WZ.world.id, name:"", pronouns:"they/them", look:"", origin:"", cls:null, base:null, story:null, portrait:null, avatar:randomAvatar() }; }
+function wizardFrame(title, sub){
+  const box = $("#wizard"); box.textContent = "";
+  const top = el("div","wtop"); const back = el("button","back","←"); back.setAttribute("aria-label","Back");
+  back.addEventListener("click", () => { const i = STEPS.indexOf(WZ.step); if (WZ.step === "mode") { if (WZ.fromChars) go("characters"); else { WZ.step = "pick"; renderWizard(); } return; } if (i <= 0) { go("worlds"); return; } WZ.step = STEPS[i - 1]; renderWizard(); });
+  const pr = el("div","prog"); const fill = el("b"); fill.style.width = Math.round(100 * (STEPS.indexOf(WZ.step) + 1) / STEPS.length) + "%"; pr.append(fill);
+  top.append(back, pr); box.append(top);
+  const wc = el("div","worldchip"); const sw = el("i"); sw.style.setProperty("--art", artFor(WZ.world)); wc.append(sw, el("span",null,WZ.world.name)); const ch = el("a",null,"Change world"); ch.href = "#worlds"; wc.append(ch); box.append(wc);
+  box.append(el("h2",null,title)); if (sub) box.append(el("p","sub",sub));
+  return box;
+}
+function nextBtn(label, fn, disabled){ const b = el("button","btn primary block",label); b.disabled = !!disabled; b.addEventListener("click", fn); return b; }
+const nm = () => WZ.draft?.name || "your character";
+function renderWizard(){
+  if (!WZ.world) return;
+  const s = WZ.step;
+  $("#wizard").classList.toggle("wide", s === "look");
+  if (s !== "pick" && s !== "mode" && !WZ.draft) newDraft();
+  if (s === "pick") {
+    const box = wizardFrame("Choose your character", "Make someone new for this world, or bring a character you already have.");
+    const nb = el("button","newchar"); nb.append(el("span","plus","+"), el("span",null,"Create a new character")); nb.addEventListener("click", () => { newDraft(); WZ.step = "name"; renderWizard(); });
+    box.append(nb);
+    const here = chars.filter(c => c.world === WZ.world.id), other = chars.filter(c => c.world !== WZ.world.id);
+    for (const [label, list] of [["Made for this world", here], ["From other worlds", other]]) {
+      if (!list.length) continue; box.append(el("p","label",label));
+      const grid = el("div","pickchars");
+      list.forEach(c => { const b = el("button","pc"); const pic = el("div","pic"); picInto(pic, c); b.append(pic, el("b",null,c.name), el("small",null,c.cls?.name || "")); b.addEventListener("click", () => { WZ.char = c; WZ.justMade = false; WZ.step = "mode"; renderWizard(); }); grid.append(b); });
+      box.append(grid);
+    }
+    return;
+  }
+  if (s === "name") {
+    const box = wizardFrame("What is your character's name?", "This is how the story will know them.");
+    const i = el("input"); i.id = "wzName"; i.maxLength = 40; i.placeholder = "Type a name"; i.value = WZ.draft.name;
+    const n = nextBtn("Continue", () => { WZ.draft.name = i.value.trim(); WZ.step = "look"; renderWizard(); }, !i.value.trim());
+    i.addEventListener("input", () => n.disabled = !i.value.trim()); i.addEventListener("keydown", e => { if (e.key === "Enter" && i.value.trim()) n.click(); });
+    box.append(i, n); i.focus(); return;
+  }
+  if (s === "look") {
+    const box = wizardFrame(`Create ${nm()}'s look.`, "Shape their face and body. The Game Master sees this description too.");
+    if (!WZ.draft.avatar) WZ.draft.avatar = randomAvatar();
+    const cr = el("div"); buildCreator(cr, WZ.draft.avatar);
+    const row = el("div","row"); ["he/him","she/her","they/them"].forEach(p => { const c = el("button","chip",p); c.setAttribute("aria-pressed", String(WZ.draft.pronouns === p)); c.addEventListener("click", () => { WZ.draft.pronouns = p; row.querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", String(x === c))); }); row.append(c); });
+    const t = el("textarea"); t.id = "wzLook"; t.maxLength = 400; t.style.minHeight = "70px"; t.placeholder = "A long red coat, a cracked pocket watch, always smells of smoke..."; t.value = WZ.draft.look;
+    const pin = el("div","portraitIn"); const img = el("img"); img.alt = ""; img.hidden = !WZ.draft.portrait; if (WZ.draft.portrait) img.src = WZ.draft.portrait;
+    const f = el("input"); f.type = "file"; f.accept = "image/*"; f.id = "wzPic"; f.style.maxWidth = "260px";
+    const clr = el("button","btn small","Use the drawing instead"); clr.hidden = !WZ.draft.portrait; clr.addEventListener("click", () => { WZ.draft.portrait = null; img.hidden = true; clr.hidden = true; });
+    f.addEventListener("change", async () => { if (!f.files[0]) return; try { WZ.draft.portrait = await shrinkImage(f.files[0]); img.src = WZ.draft.portrait; img.hidden = false; clr.hidden = false; } catch { toast("That image couldn't be read."); } });
+    pin.append(img, f, clr);
+    box.append(cr, el("p","label","Pronouns"), row, fieldOf("Other details (optional)", t), fieldOf("Or upload your own picture (an image you own)", pin), nextBtn("Continue", () => { WZ.draft.look = t.value.trim(); WZ.step = "origin"; renderWizard(); }));
+    return;
+  }
+  if (s === "origin") {
+    const box = wizardFrame(`Where does ${nm()} come from?`, `A place, a people, a past, somewhere in ${WZ.world.name}.`);
+    const t = el("textarea"); t.id = "wzOrigin"; t.maxLength = 400; t.placeholder = "Raised by smugglers on the outer docks; never met my mother..."; t.value = WZ.draft.origin;
+    box.append(t, nextBtn("Continue", () => { WZ.draft.origin = t.value.trim(); WZ.step = "class"; renderWizard(); })); t.focus(); return;
+  }
+  if (s === "class") {
+    const box = wizardFrame("Pick a class.", `Classes native to ${WZ.world.name}. Tap one to see what it does.`);
+    const acc = el("div","acc"); box.append(acc);
+    const st = el("p","status"); box.append(st);
+    if (!WZ.classes) { for (let i = 0; i < 3; i++) acc.append(el("div","skel")); st.textContent = "The Forge is shaping this world's classes..."; loadWorldClasses(WZ.world).then(list => { WZ.classes = list; if (WZ.step === "class") renderWizard(); }); }
+    else {
+      WZ.classes.forEach((c, i) => acc.append(classCard(c, i)));
+      acc.append(customClassCard());
+    }
+    box.append(nextBtn("Choose class", () => { WZ.step = "stats"; WZ.draft.base = null; renderWizard(); }, !WZ.draft.cls));
+    return;
+  }
+  if (s === "stats") {
+    const box = wizardFrame("Roll your abilities.", "Four six-sided dice, drop the lowest. Your class adds its bonuses.");
+    if (!WZ.draft.base) WZ.draft.base = rollStats();
+    const g = el("div","statgrid");
+    for (const k of STATS) { const b = WZ.draft.cls.bonus?.[k] || 0, v = WZ.draft.base[k] + b; const s2 = el("div","stat"); s2.append(el("b",null,k), el("div","v",v), el("div","m",fmtMod(mod(v)))); if (b) s2.append(el("div","bn " + (b > 0 ? "plus" : "minus"), `${fmtMod(b)} class`)); g.append(s2); }
+    const rr = el("button","btn","Reroll"); rr.addEventListener("click", () => { WZ.draft.base = rollStats(); renderWizard(); });
+    box.append(g, rr, nextBtn("Keep these", () => { WZ.step = "story"; renderWizard(); }));
+    return;
+  }
+  if (s === "story") {
+    const box = wizardFrame(`${nm()}'s story.`, "Write it yourself, let the Forge write it, or skip and discover it in play.");
+    const t = el("textarea"); t.id = "wzStory"; t.maxLength = 1500; t.style.minHeight = "160px"; t.placeholder = "What happened before the story starts?"; t.value = WZ.draft.story?.backstory || "";
+    const extra = el("div","pane");
+    const showExtra = () => { extra.textContent = ""; const s2 = WZ.draft.story; if (!s2) return; for (const [k, v] of [["Trait",s2.trait],["Flaw",s2.flaw],["Bond",s2.bond],["Hook",s2.hook]]) if (v) { const r = el("div"); r.append(el("b",null,k + ". "), document.createTextNode(v)); extra.append(r); } };
+    showExtra();
+    const st = el("p","status");
+    const ai = el("button","btn","Write it for me");
+    ai.addEventListener("click", async () => {
+      await ready; if (!SAMPLE) { st.textContent = ERRCOPY.unavailable; st.classList.add("err"); return; }
+      ai.disabled = true; st.classList.remove("err"); st.textContent = "The Forge is remembering who they were...";
+      try {
+        const r = await SAMPLE.json(`Write an original backstory for a tabletop RPG character in this world.
+WORLD: ${WZ.world.name}. ${WZ.world.premise}
+Name: ${WZ.draft.name} (${WZ.draft.pronouns})
+Appearance: ${describeAvatar(WZ.draft.avatar)}. ${WZ.draft.look || ""}
+Origin: ${WZ.draft.origin || "(not given, invent one that fits the world)"}
+Class: ${WZ.draft.cls.name}: ${WZ.draft.cls.blurb}
+Reply with only JSON: {"backstory": 2 short paragraphs under 150 words, "trait": one sentence, "flaw": one sentence, "bond": one sentence, "hook": one sentence a Game Master can use}`, { cache:false, seat:"forge" });
+        if (!r || !r.backstory) throw { code:"invalid_json" };
+        WZ.draft.story = { backstory:String(r.backstory).slice(0,1500), trait:String(r.trait||""), flaw:String(r.flaw||""), bond:String(r.bond||""), hook:String(r.hook||"") };
+        t.value = WZ.draft.story.backstory; showExtra(); st.textContent = "";
+      } catch (e) { st.textContent = errText(e); st.classList.add("err"); }
+      ai.disabled = false;
+    });
+    box.append(t, el("div","row"), extra, st);
+    box.querySelector(".row").append(ai);
+    box.append(nextBtn("Save character", async () => {
+      const dr = WZ.draft; dr.story = { ...(dr.story || {}), backstory: t.value.trim() };
+      const stats = {}; for (const k of STATS) stats[k] = dr.base[k] + (dr.cls.bonus?.[k] || 0);
+      const c = { id:dr.id, world:dr.world, name:dr.name, pronouns:dr.pronouns, look:dr.look, origin:dr.origin, cls:dr.cls, stats, story:dr.story, portrait:dr.portrait, avatar:dr.avatar, hp:Math.max(1, (dr.cls.hitDie || 8) + mod(stats.CON)), updated:Date.now() };
+      await saveChar(c); WZ.char = c; WZ.justMade = true; WZ.step = "mode"; renderWizard(); toast(`${c.name} saved.`);
+    }));
+    return;
+  }
+  if (s === "mode") {
+    const c = WZ.char; const box = wizardFrame(`Ready, ${c.name}?`, "Play alone, or open a table and share the code with friends.");
+    const m = el("div","modes");
+    const solo = el("div","mode"); solo.append(el("h3",null,"Play solo"), el("p",null,"Just you and the council. Your progress is saved."), nextBtn(store.get(soloKey(WZ.world.id, c.id), null) ? "Continue your story" : "Begin", () => startGame("solo", c, WZ.world)));
+    const host = el("div","mode"); host.append(el("h3",null,"Open a table"), el("p",null,"Friends join with a five-letter code. You run the Game Master for everyone."), nextBtn("Open table", () => startGame("host", c, WZ.world)));
+    const join = el("div","mode"); const ji = el("input"); ji.id = "wzJoin"; ji.maxLength = 5; ji.placeholder = "Table code"; ji.style.textTransform = "uppercase";
+    const jb = el("button","btn","Join"); const js = el("p","status");
+    jb.addEventListener("click", async () => { const code = ji.value.trim().toUpperCase(); if (!/^[A-Z0-9]{5}$/.test(code)) { js.textContent = "Table codes are five letters or numbers."; return; } js.textContent = "Joining..."; if (!await startGame("join", c, null, code)) js.textContent = lastJoinErr; });
+    const r = el("div","sendrow"); r.append(ji, jb);
+    join.append(el("h3",null,"Join a friend's table"), r, js);
+    m.append(solo, host, join); box.append(m);
+    const ed = el("button","btn small","Edit character"); ed.addEventListener("click", () => editChar(c, nc => { WZ.char = nc; renderWizard(); })); box.append(ed);
+  }
+}
+function classCard(c, i){
+  const hues = ["#7ee0c2","#c79bff","#7cc7f0"]; const open = WZ.openCls === c.name, sel = WZ.draft.cls?.name === c.name;
+  const card = el("div","cls" + (c.custom ? " custom" : "")); if (!c.custom) card.style.setProperty("--hue", hues[i % 3]); if (open) card.setAttribute("open","");
+  const head = el("button"); head.setAttribute("aria-expanded", String(open));
+  head.append(el("span","cn",c.name), el("span","sel", sel ? "SELECTED" : `d${c.hitDie} · ${c.primary}`));
+  head.addEventListener("click", () => { WZ.openCls = open ? null : c.name; WZ.draft.cls = c; renderWizard(); });
+  card.append(head);
+  if (open) {
+    const b = el("div","cb"); b.append(el("p",null,c.blurb));
+    const two = el("div","two");
+    const sb = el("div"); sb.append(el("span","label","Stats")); for (const [k, v] of Object.entries(c.bonus || {})) { const r = el("span"); r.append(el("span",null,STATNAME[k] || k), el("b", v > 0 ? "plus" : "minus", fmtMod(v))); sb.append(r); }
+    const sk = el("div"); sk.append(el("span","label","Skills")); (c.skills || []).forEach(x => { const r = el("span"); r.append(el("span",null,x), el("b","plus","+2")); sk.append(r); });
+    two.append(sb, sk); b.append(two);
+    const ab = el("div"); ab.append(el("span","label","Abilities")); (c.abilities || []).forEach(a => { const r = el("p"); r.append(el("b",null,a.name + ". "), document.createTextNode(a.desc)); ab.append(r); }); b.append(ab);
+    if (c.kit?.length) b.append(el("p","muted","Starts with: " + c.kit.map(k => k.name).join(", ")));
+    card.append(b);
+  }
+  return card;
+}
+function customClassCard(){
+  const open = WZ.openCls === "__custom";
+  const card = el("div","cls custom"); if (open) card.setAttribute("open","");
+  const head = el("button"); head.append(el("span","cn","Create your own"), el("span","sel","FORGE"));
+  head.addEventListener("click", () => { WZ.openCls = open ? null : "__custom"; renderWizard(); });
+  card.append(head);
+  if (open) {
+    const b = el("div","cb"); const t = el("textarea"); t.id = "wzCustom"; t.maxLength = 200; t.placeholder = "A chef who cooks with lightning..."; t.style.minHeight = "70px";
+    const st = el("p","status"); const go2 = el("button","btn small","Forge class");
+    go2.addEventListener("click", async () => {
+      if (!t.value.trim()) return; await ready; if (!SAMPLE) { st.textContent = ERRCOPY.unavailable; return; }
+      go2.disabled = true; st.textContent = "Forging...";
+      try { const list = await genClasses(WZ.world, 1, t.value.trim()); const c = { ...list[0], custom:true }; WZ.classes = [...WZ.classes.filter(x => !x.custom), c]; WZ.draft.cls = c; WZ.openCls = c.name; renderWizard(); }
+      catch (e) { st.textContent = errText(e); go2.disabled = false; }
+    });
+    b.append(el("p","muted","Describe any concept. The Forge builds its stats, skills, abilities and gear for this world."), t, go2, st); card.append(b);
+  }
+  return card;
+}
+function cleanClass(c){
+  const bonus = {}; for (const [k, v] of Object.entries(c?.bonus || {})) if (STATS.includes(k)) bonus[k] = Math.max(-2, Math.min(2, parseInt(v) || 0));
+  return { name:String(c?.name || "Wanderer").slice(0,30), blurb:String(c?.blurb || "").slice(0,160), hitDie:[6,8,10,12].includes(+c?.hitDie) ? +c.hitDie : 8, primary:STATS.includes(c?.primary) ? c.primary : "STR", bonus,
+    skills:(Array.isArray(c?.skills) ? c.skills : []).map(String).filter(x => ALLSKILLS.includes(x)).slice(0,3),
+    abilities:(Array.isArray(c?.abilities) ? c.abilities : []).slice(0,3).map(a => ({ name:String(a?.name||"").slice(0,30), desc:String(a?.desc||"").slice(0,180) })),
+    kit:(Array.isArray(c?.kit) ? c.kit : []).slice(0,4).map(k => ({ name:String(k?.name||"").slice(0,40), cat:CATS.includes(k?.cat) ? k.cat : "Item" })).filter(k => k.name) };
+}
+async function genClasses(w, n, concept){
+  const r = await SAMPLE.json(`You design ${n === 1 ? "one playable class" : "three distinct playable starting classes"} for a tabletop RPG set in this world. They must feel native to it (use its vocabulary, factions and powers), and must be original: no names from existing franchises.
+WORLD: ${w.name} (${w.genre}). ${w.premise}
+${concept ? "PLAYER CONCEPT: " + concept : "Cover different play styles: one fighter-type, one skill/social-type, one power/magic-or-tech type."}
+Reply with only a JSON array of ${n} objects: {"name": 1-3 words, "blurb": under 20 words, "hitDie": 6|8|10|12, "primary": "STR"|"DEX"|"CON"|"INT"|"WIS"|"CHA", "bonus": {"<STAT>": +2, "<STAT>": +1, "<STAT>": -1}, "skills": 3 picked from ${JSON.stringify(ALLSKILLS)}, "abilities": [2 {"name": short, "desc": one playable sentence}], "kit": [3 {"name": starting item that fits the world, "cat": "Weapon"|"Armor"|"Trinket"|"Consumable"|"Item"}]}`, { modelTier:"quick", cache:false, seat:"forge" });
+  const arr = Array.isArray(r) ? r : [r]; if (!arr.length) throw { code:"invalid_json" };
+  return arr.slice(0, n).map(cleanClass);
+}
+async function loadWorldClasses(w){
+  const key = "lh.wc." + w.id;
+  if (worldClassCache[w.id]) return worldClassCache[w.id];
+  const cached = store.get(key, null); if (cached?.length) return (worldClassCache[w.id] = cached);
+  await ready;
+  if (SAMPLE) { try { const list = await genClasses(w, 3); if (list.length >= 2) { store.set(key, list); return (worldClassCache[w.id] = list); } } catch {} }
+  return FALLBACK_CLASSES.map(cleanClass);
+}
+function rollStats(){ const o = {}; for (const k of STATS) { const r = [d(6),d(6),d(6),d(6)].sort((a,b)=>a-b); o[k] = r[1]+r[2]+r[3]; } return o; }
+
+/* ---------- table state ---------- */
+const T = { on:false, mode:"solo", code:null, R:null, isHost:true, me:null, camp:null, log:[], round:0, gmTurns:0, chron:{ summary:"", quests:[], npcs:[], fate:0 }, notes:[], done:[], offers:[], pending:[], lastActs:null, lastOpening:false, busy:false, timer:null, roll:null, peers:[], synced:false, scene:"" };
+const soloKey = (w, c) => "lh.solo." + w + "." + c;
+let lastJoinErr = "";
+function prepMe(c){ c = JSON.parse(JSON.stringify(c)); c.hpMax = c.hp || 8; c.hpCur = c.hpMax; c.level = 1; c.xp = 0; c.gold = 10; c.inv = (c.cls?.kit || []).map(k => ({ ...k, eq: k.cat === "Weapon" || k.cat === "Armor" })); return c; }
+function brief(c){ return { name:c.name, cls:c.cls?.name, pron:c.pronouns, look:((c.avatar ? describeAvatar(c.avatar) + ". " : "") + (c.look || "")).slice(0,300), origin:(c.origin||"").slice(0,120), hp:`${c.hpCur}/${c.hpMax}`, lvl:c.level, gold:c.gold, inv:(c.inv||[]).slice(0,8).map(i => i.name + (i.eq ? "*" : "")), hook:(c.story?.hook||"").slice(0,160), stats:c.stats, av:c.portrait ? null : (c.avatar || null), abil:(c.cls?.abilities||[]).map(a => a.name) }; }
+function saveSolo(){ if (T.mode !== "solo" || !T.me) return; store.set(soloKey(T.camp.id, T.me.id), { log:T.log.slice(-80), round:T.round, chron:T.chron, notes:T.notes, done:T.done, offers:T.offers, gmTurns:T.gmTurns, scene:T.scene, me:{ hpCur:T.me.hpCur, hpMax:T.me.hpMax, xp:T.me.xp, level:T.me.level, gold:T.me.gold, inv:T.me.inv } }); }
+const xpNeed = () => 10 * (T.me.level || 1);
+const isAnime = w => w && (w.cat === "anime" || w.anime);
+
+async function startGame(mode, c, w, code){
+  await ready;
+  resetT(); T.me = prepMe(c);
+  if (mode === "join") {
+    T.mode = "multi"; T.isHost = false; T.camp = null;
+    try { await openRoom(code, false); } catch (e) { lastJoinErr = e.code === "noroom" ? "Shared tables aren't switched on for this site yet." : "Couldn't join that table. Check the code."; $("#joinMsg").textContent = lastJoinErr; resetT(); return false; }
+    showTable(); addEntry({ kind:"sys", text:"Waiting for the host to share the story..." }); return true;
+  }
+  T.camp = { id:w.id, name:w.name, premise:w.premise, anime:isAnime(w) };
+  if (mode === "host") {
+    T.mode = "multi";
+    const code2 = Array.from({length:5}, () => "ABCDEFGHJKMNPQRSTUVWXYZ23456789"[Math.floor(Math.random()*31)]).join("");
+    try { await openRoom(code2, true); } catch (e) { toast(e.code === "noroom" ? "Shared tables aren't switched on for this site yet." : "Couldn't open the table."); resetT(); return false; }
+    showTable(); wake(); addEntry({ kind:"sys", text:`Table open. Share code ${code2} with your party.` }); runGM(true); return true;
+  }
+  T.mode = "solo"; store.set("lh.last", { world:w.id, charId:c.id });
+  showTable();
+  const saved = store.get(soloKey(w.id, c.id), null);
+  if (saved && saved.log?.length) {
+    T.round = saved.round || 0; T.gmTurns = saved.gmTurns || 0; T.chron = sanitizeChron(saved.chron); T.notes = saved.notes || []; T.done = saved.done || []; T.offers = saved.offers || []; T.scene = saved.scene || "";
+    if (saved.me) Object.assign(T.me, saved.me);
+    saved.log.forEach(e => addEntry(e, false));
+    addEntry({ kind:"sys", text:"Welcome back. Your story picks up where you left it." }, false);
+    renderSide(); return true;
+  }
+  wake(); runGM(true); return true;
+}
+function showTable(){
+  T.on = true; go("play");
+  $("#tblLabel").textContent = T.mode === "solo" ? "Solo table" : T.isHost ? "Your table" : "Shared table";
+  $("#tblTitle").textContent = T.scene || T.camp?.name || "Waiting for the host...";
+  const cb = $("#codeBox"); cb.textContent = ""; if (T.code) cb.append(el("span","label","Table code "), el("div","code",T.code));
+  $("#log").textContent = ""; setRailTab("char"); setPane("rels"); renderSide(); renderCmds();
+}
+function resetT(){
+  if (T.R) { try { T.R.leave(); } catch {} }
+  Object.assign(T, { on:false, mode:"solo", code:null, R:null, isHost:true, me:null, camp:null, log:[], round:0, gmTurns:0, chron:{summary:"",quests:[],npcs:[],fate:0}, notes:[], done:[], offers:[], pending:[], lastActs:null, busy:false, roll:null, peers:[], synced:false, scene:"" });
+  setChoices([]); setRollAsk(null); seenRels.clear(); openRels.clear();
+}
+function wake(){
+  const h = $("#wakeHost"); h.textContent = "";
+  const w = el("div","wake"); const inner = el("div"); const p = el("div","wp"); picInto(p, T.me);
+  inner.append(p, el("h2",null,`Wake up, ${T.me.name}...`)); w.append(inner); h.append(w);
+  setTimeout(() => w.classList.add("out"), 2200); setTimeout(() => w.remove(), 3000);
+}
+
+/* ---------- log ---------- */
+function addEntry(e, persist = true){
+  const live = e.live; delete e.live;
+  T.log.push(e); if (T.log.length > 200) T.log.shift();
+  renderEntry({ ...e, live });
+  if (persist) saveSolo();
+}
+function rerenderLog(){ $("#log").textContent = ""; T.log.forEach(e => renderEntry(e)); }
+function renderEntry(e){
+  const box = $("#log"); let n;
+  if (e.kind === "gm") { n = el("div","entry gm"); const t = el("div","txt"); fmtTale(t, e.text); n.append(t); if (e.live) setTimeout(() => speakLines(n), 50); }
+  else if (e.kind === "act") { n = el("div","entry actrow"); const b = el("div","act"); b.append(el("div","who",e.who), el("div",null,e.text)); const who = whoFace(e.who); n.append(b, who); }
+  else if (e.kind === "npc") { n = el("div","entry"); n.append(sayCard(e.who, e.text)); if (e.live) setTimeout(() => speakLines(n), 50); }
+  else if (e.kind === "ooc") { n = el("div","entry ooc"); n.append(el("div","who","Game Master · out of character"), el("div",null,e.text)); }
+  else if (e.kind === "roll") { n = el("div","entry roll", e.text); }
+  else { n = el("div","entry sys", e.text); }
+  box.append(n); if (T.on && !$("#v-play").hidden) n.scrollIntoView({ block:"nearest", behavior:"smooth" }); return n;
+}
+function fmtInline(parent, str){
+  for (const part of str.split(/(\*\*[^*\n]+\*\*|__[^_\n]+__)/)) {
+    if (!part) continue;
+    if (/^\*\*.+\*\*$/.test(part)) parent.append(el("span","np",part.slice(2,-2)));
+    else if (/^__.+__$/.test(part)) parent.append(el("span","pl",part.slice(2,-2)));
+    else parent.append(document.createTextNode(part.replace(/\*\*|__/g,"")));
+  }
+}
+function fmtTale(box, text){
+  box.textContent = "";
+  for (const para of String(text).split(/\n+/).map(x => x.trim()).filter(Boolean)) {
+    const dm = para.match(/^>>\s*\**([^:*]{1,40})\**\s*:\s*(.+)$/);
+    if (dm) { box.append(sayCard(dm[1].trim(), dm[2].replace(/^["“]|["”]$/g, "").trim())); continue; }
+    if (para.startsWith(">>")) continue;
+    const p = el("p");
+    for (const seg of para.split(/("[^"\n]+"|“[^”\n]+”)/)) { if (!seg) continue; if (/^["“]/.test(seg)) { const q = el("em"); fmtInline(q, seg); p.append(q); } else fmtInline(p, seg); }
+    box.append(p);
+  }
+}
+const stripTags = t => { let s = String(t).replace(/\[\[[^\]]*\]\]/g, ""); const i = s.indexOf("[["); if (i >= 0) s = s.slice(0, i); return s.trim(); };
+
+/* ---------- voices ---------- */
+const VOICES = ["rounded","glassy","airy","buttery"];
+let speakingBtn = null;
+function sayCard(name, line){
+  const w = el("div","say"); const h = hashStr(name);
+  const av = el("div","av"); av.innerHTML = avatarSVG(npcAvatar(name), true);
+  const t = el("div"); t.append(el("div","sn",name), el("div","sl",line));
+  if (T.on) {
+    const rb = el("button","rep","Reply"); rb.type = "button";
+    rb.addEventListener("click", () => {
+      if (w.nextElementSibling?.classList.contains("replyrow")) { w.nextElementSibling.remove(); return; }
+      const r = el("div","sendrow replyrow"); const i = el("input"); i.maxLength = 240; i.placeholder = `Reply to ${name}`; i.id = "rep-" + rid();
+      const g = el("button","btn small","Say"); g.addEventListener("click", () => { const v = i.value.trim(); if (v) { r.remove(); talkTo(name, v); } });
+      i.addEventListener("keydown", e => { if (e.key === "Enter") g.click(); });
+      r.append(i, g); w.after(r); i.focus();
+    });
+    t.append(rb);
+  }
+  const pb = el("button","play"); pb.setAttribute("aria-label", `Hear ${name}`); pb.hidden = !TTS;
+  pb.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>';
+  pb.dataset.voice = VOICES[h % VOICES.length]; pb.dataset.line = line;
+  pb.addEventListener("click", () => speakLine(pb));
+  w.append(av, t, pb); return w;
+}
+async function speakLine(btn){
+  if (!TTS) return; if (speakingBtn === btn) { TTS.stop(); return; }
+  try { speakingBtn && speakingBtn.classList.remove("on"); speakingBtn = btn; btn.classList.add("on"); await TTS.speak(btn.dataset.line, { voice: btn.dataset.voice }); } catch {}
+  btn.classList.remove("on"); if (speakingBtn === btn) speakingBtn = null;
+}
+async function speakLines(node){
+  if (!TTS || !$("#autoVoice").checked) return;
+  const lines = [...node.querySelectorAll(".say .play")].map(b => ({ text:b.dataset.line, voice:b.dataset.voice }));
+  if (lines.length) { try { await TTS.speak(lines); } catch {} }
+}
+
+/* ---------- rail ---------- */
+function setRailTab(k){
+  document.querySelectorAll(".rt").forEach(x => x.setAttribute("aria-selected", String(x.dataset.tab === k)));
+  $("#tab-char").style.display = k === "char" ? "flex" : "none";
+  $("#tab-gm").hidden = k !== "gm"; $("#tab-gm").style.display = k === "gm" ? "flex" : "none";
+}
+document.querySelectorAll(".rt").forEach(b => b.addEventListener("click", () => setRailTab(b.dataset.tab)));
+let paneK = "rels";
+function setPane(k){ paneK = k; document.querySelectorAll(".ptab").forEach(x => x.setAttribute("aria-selected", String(x.dataset.p === k))); renderPane(); }
+document.querySelectorAll(".ptab").forEach(b => b.addEventListener("click", () => setPane(b.dataset.p)));
+const profBonus = () => 2 + Math.floor(((T.me?.level || 1) - 1) / 4);
+const skillMod = sk => { const st = Object.keys(SKILLS).find(k => SKILLS[k].includes(sk)); return mod(T.me.stats?.[st]) + ((T.me.cls?.skills || []).includes(sk) ? profBonus() : 0); };
+const openRels = new Set(), seenRels = new Set();
+function renderPane(){
+  const p = $("#pane"); p.textContent = ""; if (!T.me) return;
+  if (paneK === "skills") {
+    p.append(el("p","muted","Tap a skill to roll it. Dots mark your class skills."));
+    for (const st of STATS) {
+      p.append(el("h4",null,`${STATNAME[st]} ${T.me.stats?.[st] ?? 10} (${fmtMod(mod(T.me.stats?.[st]))})`));
+      for (const sk of SKILLS[st]) { const b = el("button","skill" + ((T.me.cls?.skills||[]).includes(sk) ? " prof" : "")); b.append(el("span",null,sk), el("em",null,fmtMod(skillMod(sk)))); b.addEventListener("click", () => rollSkill(sk)); p.append(b); }
+    }
+    if (T.me.cls?.abilities?.length) { p.append(el("h4",null,"Abilities")); T.me.cls.abilities.forEach(a => { const b = el("button","skill"); b.append(el("span",null,a.name), el("em",null,"use")); b.title = a.desc; b.addEventListener("click", () => { $("#actIn").value = `I use ${a.name}: `; $("#actIn").focus(); }); p.append(b); }); }
+  } else if (paneK === "inv") {
+    p.append(el("h4",null,`Gold ${T.me.gold}`));
+    for (const cat of CATS) {
+      const items = T.me.inv.filter(i => i.cat === cat); if (!items.length) continue;
+      p.append(el("h4",null,cat + "s"));
+      items.forEach(it => {
+        const r = el("div","item"); const nm2 = el("div"); nm2.append(el("span",null,it.name)); if (it.eq) nm2.append(el("small",null,"Equipped"));
+        let b;
+        if (cat === "Consumable") { b = el("button","btn small","Use"); b.addEventListener("click", () => { T.me.inv = T.me.inv.filter(x => x !== it); sendAct(`I use my ${it.name}.`); renderPane(); syncMe(); }); }
+        else if (cat !== "Item") { b = el("button","btn small", it.eq ? "Unequip" : "Equip"); b.addEventListener("click", () => { it.eq = !it.eq; renderPane(); syncMe(); }); }
+        r.append(nm2); if (b) r.append(b); p.append(r);
+      });
+    }
+    if (!T.me.inv.length) p.append(el("p","muted","Empty. The Game Master adds loot as you find it."));
+  } else if (paneK === "quests") {
+    const qb = el("button","btn small primary", T.offers.length ? "Refresh the quest board" : "Visit the quest board"); qb.addEventListener("click", () => questBoard(qb));
+    p.append(el("h4",null,"Quest board"), el("p","muted","Find work nearby. Taking a quest tells the Game Master you're on it."), qb);
+    T.offers.forEach((o, i) => {
+      const c = el("div","offer"); const meta = el("div","meta"); meta.append(el("span",o.danger,o.danger), el("span",null,o.kind)); if (o.reward) meta.append(el("span",null,o.reward));
+      c.append(meta, el("b",null,o.title), el("span","muted",`${o.giver ? o.giver + ": " : ""}${o.hook}`));
+      const take = el("button","btn small","Take this quest"); take.addEventListener("click", () => takeQuest(i)); c.append(take); p.append(c);
+    });
+    p.append(el("h4",null,"Active quests"));
+    if (!T.chron.quests.length) p.append(el("p","muted","None yet. Take one from the board or follow the story."));
+    T.chron.quests.forEach(q => {
+      const c = el("div","qcard"); c.append(el("span","qk " + (q.kind === "Main" ? "main" : "side"), q.kind.toUpperCase()), el("b",null,q.title));
+      if (q.goal) c.append(el("span","muted",q.goal));
+      if (q.steps?.length) { const ul = el("ul","steps"); q.steps.forEach(x => ul.append(el("li", x.done ? "ok" : null, x.text))); c.append(ul); }
+      if (q.giver || q.reward) c.append(el("span","muted", [q.giver && "From " + q.giver, q.reward && "Reward: " + q.reward].filter(Boolean).join(" \u00b7 ")));
+      p.append(c);
+    });
+    if (T.done.length) { p.append(el("h4",null,"Completed")); T.done.slice().reverse().forEach(t => { const c = el("div","qcard"); c.append(el("span","qk done","DONE"), el("b",null,t)); p.append(c); }); }
+    if (T.chron.summary) { p.append(el("h4",null,"Journal")); p.append(el("p",null,T.chron.summary)); }
+  } else {
+    p.append(el("h4",null,"Relationships"));
+    if (!T.chron.npcs.length) { p.append(el("p","muted","No one yet. People you meet show up here, with how they feel about you.")); return; }
+    for (const npc of T.chron.npcs) {
+      const card = el("div","rel a-" + npc.attitude.toLowerCase()); if (!seenRels.has(npc.name)) { seenRels.add(npc.name); card.classList.add("fresh"); } if (openRels.has(npc.name)) card.setAttribute("open","");
+      const head = el("button"); head.setAttribute("aria-expanded", String(openRels.has(npc.name)));
+      const t = el("div"); t.append(el("div","rn",npc.name), el("div","ra",npc.attitude)); head.append(faceEl(npc.name), t, el("span","chev","⌄"));
+      head.addEventListener("click", () => { openRels.has(npc.name) ? openRels.delete(npc.name) : openRels.add(npc.name); renderPane(); });
+      card.append(head);
+      if (openRels.has(npc.name)) {
+        const body = el("div","rbody"); if (npc.note) body.append(el("p",null,npc.note));
+        const row = el("div","sendrow"); const inp = el("input"); inp.maxLength = 240; inp.placeholder = `Say something to ${npc.name}`; inp.id = "say-" + npc.name.replace(/\W+/g,"-");
+        const go2 = el("button","btn small","Say"); go2.addEventListener("click", () => { const v = inp.value.trim(); if (v) { inp.value = ""; talkTo(npc.name, v); } });
+        inp.addEventListener("keydown", e => { if (e.key === "Enter") go2.click(); });
+        row.append(inp, go2); body.append(row); card.append(body);
+      }
+      p.append(card);
+    }
+  }
+}
+function renderMe(){
+  if (!T.me) return;
+  $("#pName").textContent = T.me.name; $("#pCls").textContent = `${T.me.cls?.name || ""} · Level ${T.me.level}`;
+  $("#nextName").textContent = T.mode === "solo" ? T.me.name : "The party";
+  picInto($("#pImg"), T.me);
+  $("#hpFill").style.width = (100 * T.me.hpCur / T.me.hpMax) + "%"; $("#hpTxt").textContent = `${T.me.hpCur}/${T.me.hpMax}`;
+  $("#lvTxt").textContent = "LVL " + T.me.level; $("#xpFill").style.width = (100 * T.me.xp / xpNeed()) + "%"; $("#xpTxt").textContent = `${T.me.xp}/${xpNeed()}`;
+}
+function renderSide(){
+  $("#roundN").textContent = T.round; $("#fateMark").style.left = `calc(${50 + T.chron.fate * 16.6}% - 2px)`;
+  if (T.scene) $("#tblTitle").textContent = T.scene;
+  renderMe(); renderPane(); renderParty();
+}
+function renderParty(){
+  const p = $("#party"); p.textContent = "";
+  if (T.mode === "solo") { const r = el("div","you"); r.append(el("span",null,T.me.name), el("span",null,`HP ${T.me.hpCur}/${T.me.hpMax}`)); p.append(r); $("#claimHost").hidden = true; return; }
+  let hostHere = false;
+  for (const peer of T.peers) { const c = peer.presence?.char; if (!c) continue; if (peer.presence.host) hostHere = true; const r = el("div", peer.sameTab ? "you" : null); r.append(el("span",null,(c.name || "Someone") + (peer.presence.host ? " (GM)" : "") + (peer.sameTab ? " · you" : "")), el("span",null,`L${c.lvl || 1} · HP ${c.hp ?? "?"}`)); p.append(r); }
+  $("#claimHost").hidden = hostHere || T.isHost;
+  if (!T.isHost) setLamp("gm", T.peers.some(x => x.presence?.gmBusy && !x.sameTab));
+}
+function setLamp(k, on){ $("#lamp-" + k).classList.toggle("on", !!on); }
+function syncMe(){ if (T.R) T.R.presence({ char: brief(T.me) }).catch(()=>{}); saveSolo(); }
+
+/* ---------- GM shortcuts ---------- */
+const CMDS = [
+  ["Catch me up","A quick recap of the story so far", () => { const s = T.chron.summary; if (s) addEntry({ kind:"ooc", text:s }); else oocAsk("Give me a short recap of everything that has happened so far."); }],
+  ["Fix a memory","Correct something the story got wrong", () => askSheet("Fix a memory","What should the Game Master remember differently?","My character never agreed to the deal; she walked out.","Save correction", v => { T.notes = [...T.notes, v].slice(-8); addEntry({ kind:"ooc", text:"Noted. The story will respect this: " + v }); })],
+  ["Change my character","Edit name, looks, backstory or portrait", () => { const c = chars.find(x => x.id === T.me.id); if (c) editChar(c, nc => { Object.assign(T.me, { name:nc.name, look:nc.look, origin:nc.origin, story:nc.story, portrait:nc.portrait, avatar:nc.avatar }); renderSide(); syncMe(); }); }],
+  ["Quest board","Find new quests to go on", () => { setRailTab("char"); setPane("quests"); }],
+  ["Manage quests","See your journal and open quests", () => { setRailTab("char"); setPane("quests"); }],
+  ["People and connections","Everyone you've met and how they feel", () => { setRailTab("char"); setPane("rels"); }],
+  ["Rewrite the story","Redo the Game Master's last turn", () => rewriteLast()],
+  ["Explain a rule","Ask how something works", () => askSheet("Explain a rule","What do you want to know?","How do ability checks work? Can I attack twice?","Ask", v => oocAsk("Explain this rule briefly for a player: " + v))],
+  ["Take a rest","Catch your breath and tend wounds", () => sendAct("I take a moment to rest and tend my wounds.")]
+];
+function renderCmds(){ const box = $("#cmds"); box.textContent = ""; CMDS.forEach(([t, s, fn]) => { const b = el("button","cmd"); const tx = el("div"); tx.append(el("b",null,t), el("small",null,s)); b.append(el("i"), tx); b.addEventListener("click", fn); box.append(b); }); }
+$("#askGo").addEventListener("click", () => { const v = $("#askGM").value.trim(); if (!v) return; $("#askGM").value = ""; oocAsk(v); });
+$("#askGM").addEventListener("keydown", e => { if (e.key === "Enter") $("#askGo").click(); });
+async function oocAsk(q){
+  await ready; if (!SAMPLE) { $("#aiErr").textContent = ERRCOPY.unavailable; return; }
+  setLamp("gm", true);
+  const recent = T.log.filter(e => e.kind === "gm" || e.kind === "act").slice(-8).map(e => (e.kind === "gm" ? "GM: " : e.who + ": ") + stripTags(e.text)).join("\n");
+  try {
+    const { text } = await SAMPLE(`You are the Game Master of a tabletop RPG answering a player OUT OF CHARACTER. Be brief (under 90 words), friendly and clear. Rules are loosely 5e-like: d20 + modifier vs a difficulty; class skills add a proficiency bonus.
+Campaign: ${T.camp?.name}. Story so far: ${T.chron.summary || "(just beginning)"}
+Player character: ${JSON.stringify(brief(T.me))}
+Recent:
+${recent}
+Player asks: ${q}`, { modelTier:"quick", cache:false, seat:"gm" });
+    addEntry({ kind:"ooc", text:text.trim() });
+  } catch (e) { $("#aiErr").textContent = errText(e); }
+  setLamp("gm", false);
+}
+function rewriteLast(){
+  if (!T.isHost) { toast("Only the person running the Game Master can rewrite."); return; }
+  if (T.busy) return;
+  let i = T.log.length - 1; while (i >= 0 && T.log[i].kind !== "gm") i--;
+  if (i < 0 || !T.lastActs) { toast("Nothing to rewrite yet."); return; }
+  T.log.splice(i, 1); T.round = Math.max(0, T.round - 1); rerenderLog();
+  if (T.R) T.R.emit("log", { kind:"rewind" }).catch(()=>{});
+  T.pending = T.lastActs.slice(); runGM(T.lastOpening, true);
+}
+
+/* ---------- fx ---------- */
+function rollFx(n, sides, caption, kind){
+  const w = el("div","rollfx" + (kind ? " " + kind : ""));
+  const NS = "http://www.w3.org/2000/svg", svg = document.createElementNS(NS,"svg"); svg.setAttribute("viewBox","0 0 200 200");
+  const pg = document.createElementNS(NS,"polygon"); pg.setAttribute("points", sides === 20 ? "100,8 182,54 182,146 100,192 18,146 18,54" : "30,30 170,30 170,170 30,170");
+  const tx = document.createElementNS(NS,"text"); tx.setAttribute("x","100"); tx.setAttribute("y","124"); tx.setAttribute("text-anchor","middle"); tx.textContent = n;
+  svg.append(pg, tx); w.append(svg); if (caption) w.append(el("p",null,caption));
+  $("#fx").append(w); setTimeout(() => w.remove(), 2000);
+}
+function floatAt(target, text, color){ const r = target.getBoundingClientRect(); const f = el("div","floater",text); f.style.left = (r.left + r.width / 2 - 30) + "px"; f.style.top = (r.top + r.height * 0.45) + "px"; f.style.color = color; $("#fx").append(f); setTimeout(() => f.remove(), 1500); }
+function pulseClass(node, cls, ms){ if (!node) return; node.classList.remove(cls); void node.offsetWidth; node.classList.add(cls); setTimeout(() => node.classList.remove(cls), ms); }
+function bannerFx(text){ const b = el("div","banner",text); $("#fx").append(b); setTimeout(() => b.remove(), 2300); }
+
+/* ---------- rolls ---------- */
+for (const n of [4,6,8,10,12,20,100]) {
+  const b = el("button","die","d" + n); b.addEventListener("click", () => { if (!T.on) return; const r = d(n); rollFx(r, n === 20 ? 20 : 6, `d${n}`, n === 20 && r === 20 ? "crit" : n === 20 && r === 1 ? "fail" : ""); broadcast("roll", { text:`${T.me.name} rolls d${n}: ${r}` }); });
+  $("#dice").append(b);
+}
+function rollSkill(sk){
+  if (!T.on) return; const n = d(20), m = skillMod(sk), tot = n + m;
+  rollFx(n, 20, `${sk} ${tot}`, n === 20 ? "crit" : n === 1 ? "fail" : "");
+  broadcast("roll", { text:`${T.me.name} rolls ${sk}: ${n} ${fmtMod(m)} = ${tot}` });
+  if (T.roll) { const r = T.roll; const ok = n === 20 || (n !== 1 && tot >= r.dc); sendAct(`(Rolled ${sk} for the ${r.stat} check: ${tot} vs DC ${r.dc}, ${ok ? "success" : "failure"}.)`); setRollAsk(null); }
+}
+function setChoices(list){ const c = $("#choices"); c.textContent = ""; (list || []).slice(0,4).forEach(x => { const b = el("button","choice",x); b.addEventListener("click", () => { $("#actIn").value = x; $("#actIn").focus(); }); c.append(b); }); }
+function setRollAsk(r){
+  T.roll = r; const box = $("#rollAsk"); box.textContent = ""; box.hidden = !r; if (!r || !T.me) return;
+  const m = mod(T.me.stats?.[r.stat]);
+  box.append(el("span","label",`${STATNAME[r.stat]} check · DC ${r.dc}`));
+  const b = el("button","btn small primary",`Roll d20 ${fmtMod(m)}`);
+  b.addEventListener("click", () => {
+    const n = d(20), tot = n + m, ok = n === 20 || (n !== 1 && tot >= r.dc);
+    rollFx(n, 20, `${tot} vs DC ${r.dc} · ${n === 20 ? "Critical!" : n === 1 ? "Fumble" : ok ? "Success" : "Fail"}`, n === 20 ? "crit" : !ok ? "fail" : "");
+    broadcast("roll", { text:`${T.me.name} rolls ${r.stat}: ${n} ${fmtMod(m)} = ${tot} vs DC ${r.dc}. ${n === 20 ? "Critical success!" : n === 1 ? "Critical failure." : ok ? "Success." : "Failure."}` });
+    sendAct(`(Rolled ${r.stat} check: ${tot} vs DC ${r.dc}, ${ok ? "success" : "failure"}${n===20?", natural 20":n===1?", natural 1":""}.)`);
+    setRollAsk(null);
+  });
+  box.append(b); if (r.why) box.append(el("span","muted",r.why));
+  const skills = SKILLS[r.stat] || []; if (skills.length > 1) box.append(el("span","muted",`or tap a ${STATNAME[r.stat]} skill in your Skills tab`));
+}
+
+/* ---------- effects ---------- */
+function applyEffects(list){
+  if (!Array.isArray(list) || !T.me) return;
+  const me = T.me.name.toLowerCase(); let changed = false;
+  for (const f of list) {
+    const who = String(f.who || "").toLowerCase().trim();
+    if (!(who === me || who === "party" || who === "all" || (who.length > 2 && me.startsWith(who)))) continue;
+    changed = true;
+    const showFx = !$("#v-play").hidden;
+    if (f.k === "HP") {
+      const n = Math.max(-60, Math.min(60, parseInt(f.n) || 0)); const before = T.me.hpCur; T.me.hpCur = Math.max(0, Math.min(T.me.hpMax, T.me.hpCur + n));
+      if (T.me.hpCur !== before && showFx) { pulseClass($("#portrait"), n < 0 ? "hit" : "heal", 650); floatAt($("#portrait"), (n > 0 ? "+" : "") + (T.me.hpCur - before) + " HP", n < 0 ? "#ff6b5e" : "#6fe0a8"); }
+      if (T.me.hpCur === 0) addEntry({ kind:"sys", text:`${T.me.name} falls, barely breathing.` });
+    } else if (f.k === "XP") {
+      const n = Math.max(0, Math.min(50, parseInt(f.n) || 0)); if (!n) continue; T.me.xp += n; if (showFx) floatAt($("#xpFill").parentElement, `+${n} XP`, "#6fe0a8");
+      while (T.me.xp >= xpNeed()) { T.me.xp -= xpNeed(); T.me.level++; const gain = Math.max(1, Math.ceil((T.me.cls?.hitDie || 8) / 2) + 1 + mod(T.me.stats?.CON)); T.me.hpMax += gain; T.me.hpCur = T.me.hpMax; bannerFx("Level " + T.me.level); pulseClass($("#portrait"), "lvl", 2400); addEntry({ kind:"sys", text:`${T.me.name} reaches level ${T.me.level}. Max HP +${gain}.` }); }
+    } else if (f.k === "GOLD") {
+      const n = Math.max(-9999, Math.min(9999, parseInt(f.n) || 0)); T.me.gold = Math.max(0, T.me.gold + n); if (showFx && n) floatAt($("#portrait"), `${n > 0 ? "+" : ""}${n} gold`, "#f2c14e");
+    } else if (f.k === "ITEM") {
+      const name = String(f.item || "").slice(0,40); if (!name) continue;
+      if (f.sign === "+") { T.me.inv.push({ name, cat: CATS.includes(f.cat) ? f.cat : "Item", eq:false }); if (showFx) floatAt($("#portrait"), "+ " + name, "#7cc7d9"); }
+      else { const i = T.me.inv.findIndex(x => x.name.toLowerCase() === name.toLowerCase()); if (i >= 0) T.me.inv.splice(i, 1); }
+    }
+  }
+  if (changed) { renderSide(); syncMe(); }
+}
+function parseEffects(text){
+  const out = [];
+  for (const m of text.matchAll(/\[\[(HP|XP|GOLD):\s*([^\]]*?)\s*([+-]\d+)\s*\]\]/gi)) out.push({ k:m[1].toUpperCase(), who:m[2].trim(), n:+m[3] });
+  for (const m of text.matchAll(/\[\[ITEM:\s*([^|\]]+)\|\s*([+-])\s*([^|\]]+?)\s*(?:\|\s*(\w+)\s*)?\]\]/gi)) out.push({ k:"ITEM", who:m[1].trim(), sign:m[2], item:m[3].trim(), cat:m[4] ? m[4][0].toUpperCase() + m[4].slice(1).toLowerCase() : "Item" });
+  return out.slice(0, 12);
+}
+
+/* ---------- quest board ---------- */
+async function questBoard(btn){
+  await ready; if (!SAMPLE) { toast(ERRCOPY.unavailable); return; }
+  btn.disabled = true; btn.textContent = "Reading the board...";
+  try {
+    const r = await SAMPLE.json(`You write the quest board for a tabletop RPG. Offer 3 quests the party could take RIGHT NOW from where the story is. Make them varied (one combat, one social or mystery, one exploration or odd job), specific to this world, and original.
+World: ${T.camp.name}. ${T.camp.premise}
+Current scene: ${T.scene || "(opening)"}
+Story so far: ${T.chron.summary || "(just beginning)"}
+Known people: ${T.chron.npcs.map(n => n.name).join(", ") || "none"}
+Already active: ${T.chron.quests.map(q => q.title).join("; ") || "none"}. Completed: ${T.done.join("; ") || "none"}
+Party level: ${T.me.level}
+Reply with only a JSON array of 3 {"title": 2-6 words, "giver": a named person or group, "hook": one or two sentences, "reward": short (gold, item or favor), "danger": "Easy"|"Hard"|"Deadly", "kind": "Main"|"Side", "steps": 2-3 short objectives}`, { modelTier:"quick", cache:false, seat:"forge" });
+    T.offers = (Array.isArray(r) ? r : []).slice(0,3).map(o => ({ title:String(o?.title||"A job").slice(0,60), giver:String(o?.giver||"").slice(0,40), hook:String(o?.hook||"").slice(0,240), reward:String(o?.reward||"").slice(0,60), danger:["Easy","Hard","Deadly"].includes(o?.danger) ? o.danger : "Hard", kind:o?.kind === "Main" ? "Main" : "Side", steps:(Array.isArray(o?.steps) ? o.steps : []).slice(0,3).map(x => String(x).slice(0,90)) }));
+    saveSolo();
+  } catch (e) { toast(errText(e)); }
+  btn.disabled = false; renderPane();
+}
+function takeQuest(i){
+  const o = T.offers[i]; if (!o) return;
+  T.offers.splice(i, 1);
+  if (!T.chron.quests.some(q => q.title.toLowerCase() === o.title.toLowerCase())) T.chron.quests = [{ title:o.title, kind:o.kind, goal:o.hook, giver:o.giver, reward:o.reward, steps:o.steps.map(t => ({ text:t, done:false })) }, ...T.chron.quests].slice(0,8);
+  if (T.R && T.isHost) T.R.emit("log", { kind:"chron", chron:T.chron }).catch(()=>{});
+  renderPane(); saveSolo();
+  sendAct(`I take the quest "${o.title}"${o.giver ? ` from ${o.giver}` : ""}. ${o.hook}`);
+}
+
+/* ---------- quest completion ---------- */
+function handleCompleted(list){
+  for (const title of list || []) {
+    const key = title.toLowerCase(); if (!key || T.done.some(d2 => d2.toLowerCase() === key)) continue;
+    T.done = [...T.done, title].slice(-30);
+    if (!$("#v-play").hidden) bannerFx("Quest complete");
+    addEntry({ kind:"sys", text:`Quest complete: ${title}. +20 XP` });
+    applyEffects([{ k:"XP", who:"party", n:20 }]);
+  }
+}
+
+/* ---------- multiplayer ---------- */
+function broadcast(topic, data){
+  if (T.mode === "solo" || !T.R) { local(topic, data); return; }
+  T.R.emit(topic, data).catch(() => local(topic, data));
+}
+function local(topic, data){
+  if (topic === "roll") addEntry({ kind:"roll", text:String(data.text).slice(0,300) });
+  else if (topic === "act") { addEntry({ kind:"act", who:String(data.who).slice(0,40), text:String(data.text).slice(0,600) }); if (T.isHost && !data.talk) queueAct(data); }
+  else if (topic === "log") applyLog(data);
+}
+function sanitizeChron(c){
+  c = c || {};
+  return { summary:String(c.summary||"").slice(0,1400),
+    quests:(Array.isArray(c.quests)?c.quests:[]).map(q => typeof q === "string" ? { title:q, kind:"Side", goal:"" } : { title:String(q?.title||"").slice(0,80), kind:q?.kind === "Main" ? "Main" : "Side", goal:String(q?.goal||"").slice(0,160), giver:String(q?.giver||"").slice(0,40), reward:String(q?.reward||"").slice(0,80), steps:(Array.isArray(q?.steps) ? q.steps : []).slice(0,4).map(x => ({ text:String(x?.text ?? x ?? "").slice(0,90), done:!!x?.done })).filter(x => x.text) }).filter(q => q.title).slice(0,8),
+    npcs:(Array.isArray(c.npcs)?c.npcs:[]).map(n => typeof n === "string" ? { name:n, attitude:"Curious", note:"" } : { name:String(n?.name||"").slice(0,40), attitude:(["Hostile","Wary","Curious","Friendly","Loyal"].find(a => a.toLowerCase() === String(n?.attitude||"").toLowerCase()) || "Curious"), note:String(n?.note||"").slice(0,200) }).filter(n => n.name).slice(0,10),
+    fate:Math.max(-3,Math.min(3,+c.fate||0)),
+    completed:(Array.isArray(c.completed)?c.completed:[]).map(x => String(x).slice(0,80)).slice(0,5) };
+}
+function applyLog(x){
+  if (!x || typeof x !== "object") return;
+  if (x.kind === "gm") {
+    addEntry({ kind:"gm", text:String(x.text).slice(0,4000), live:!x.replay });
+    T.round = +x.round || T.round; if (x.scene) T.scene = String(x.scene).slice(0,80);
+    setChoices(Array.isArray(x.choices) ? x.choices.map(String) : []);
+    setRollAsk(x.roll && STATS.includes(x.roll.stat) ? { stat:x.roll.stat, dc:+x.roll.dc||12, why:String(x.roll.why||"").slice(0,120) } : null);
+    if (!x.replay) applyEffects(x.effects);
+  }
+  else if (x.kind === "npc") addEntry({ kind:"npc", who:String(x.who).slice(0,40), text:String(x.text).slice(0,1200), live:!x.replay });
+  else if (x.kind === "chron") { const f0 = T.chron.fate; T.chron = sanitizeChron(x.chron); if (T.chron.fate !== f0) pulseClass($(".fate"), "pulse", 1000); handleCompleted(T.chron.completed); }
+  else if (x.kind === "rewind") { let i = T.log.length - 1; while (i >= 0 && T.log[i].kind !== "gm") i--; if (i >= 0) { T.log.splice(i, 1); rerenderLog(); } }
+  else if (x.kind === "sys") addEntry({ kind:"sys", text:String(x.text).slice(0,200) });
+  renderSide();
+}
+async function openRoom(code, host){
+  await ready; if (!ROOM) throw { code:"noroom" };
+  const R = await ROOM.join("t-" + code.toLowerCase());
+  T.R = R; T.code = code; T.isHost = host;
+  R.on("act", m => local("act", m.data || {}));
+  R.on("roll", m => local("roll", m.data || {}));
+  R.on("log", m => { if (!m.sameTab) applyLog(m.data); });
+  R.on("sync", m => {
+    if (m.sameTab || T.isHost || T.synced) return; const x = m.data || {}; T.synced = true;
+    T.camp = { id:String(x.camp?.id||"x"), name:String(x.camp?.name||"Shared table").slice(0,60), premise:String(x.camp?.premise||"").slice(0,700), anime:!!x.camp?.anime };
+    T.round = +x.round || 0; T.chron = sanitizeChron(x.chron); T.scene = String(x.scene || "").slice(0,80);
+    $("#tblTitle").textContent = T.scene || T.camp.name; T.log = []; $("#log").textContent = "";
+    (Array.isArray(x.log) ? x.log : []).forEach(e => applyLog({ ...e, replay:true, choices:[], roll:null }));
+    addEntry({ kind:"sys", text:"You joined the table." }); wake(); renderSide();
+  });
+  R.onPeers(ch => { T.peers = ch.peers.slice(); renderParty(); if (T.isHost && ch.joined.some(p => !p.isMe)) sendSync(); });
+  await R.presence({ char: brief(T.me), host });
+}
+function sendSync(){
+  if (!T.R || !T.camp) return;
+  const tail = T.log.filter(e => ["gm","act","npc"].includes(e.kind)).slice(-6).map(e => ({ kind:e.kind, who:e.who, text:String(e.text).slice(0,360) }));
+  T.R.emit("sync", { camp:{ id:T.camp.id, name:T.camp.name, premise:T.camp.premise.slice(0,450), anime:T.camp.anime }, round:T.round, scene:T.scene, chron:{ summary:T.chron.summary.slice(0,400), quests:T.chron.quests.slice(0,4), npcs:T.chron.npcs.slice(0,5).map(n => ({ name:n.name, attitude:n.attitude })), fate:T.chron.fate }, log:tail }).catch(()=>{});
+}
+$("#claimHost").addEventListener("click", async () => { T.isHost = true; $("#claimHost").hidden = true; if (T.R) await T.R.presence({ host:true }).catch(()=>{}); if (!T.camp) T.camp = { id:"x", name:$("#tblTitle").textContent, premise:"" }; addEntry({ kind:"sys", text:"You run the Game Master now." }); });
+$("#leaveTbl").addEventListener("click", () => { resetT(); go("characters"); });
+
+/* ---------- acting ---------- */
+function sendAct(text){ text = String(text).trim(); if (!text || !T.on) return; broadcast("act", { who:T.me.name, text }); }
+$("#actSend").addEventListener("click", () => { const v = $("#actIn").value; $("#actIn").value = ""; setChoices([]); sendAct(v); });
+$("#actIn").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#actSend").click(); } });
+function queueAct(a){ T.pending.push({ who:String(a.who).slice(0,40), text:String(a.text).slice(0,600) }); clearTimeout(T.timer); T.timer = setTimeout(() => runGM(false), T.mode === "solo" ? 50 : 1800); }
+function partyList(){ if (T.mode === "solo") return [brief(T.me)]; const out = []; for (const p of T.peers) if (p.presence?.char) out.push(p.presence.char); return out.length ? out : [brief(T.me)]; }
+
+/* ---------- council ---------- */
+const GM_RULES = `You are the Game Master of a tabletop roleplaying game played in text. Run the world described below. It is an original world: never import characters, places or names from existing franchises.
+Style: vivid, second person for the party, 100-190 words per turn. End on a moment that invites action. Respect player agency: describe outcomes of what players did; never decide a player character's feelings, words or next actions. PG-13: tense, never gory.
+Rules: loosely 5e-like. When an action's outcome is uncertain, ask for ONE ability check instead of resolving it. When players report a roll, narrate the result honestly; failure has real consequences. Track HP, gold, items and XP with the tags below.
+Fate (-3 ruin .. +3 mercy) colors how the world treats the party.
+Dialogue: when a non-player character says a line that matters, put it on its own line exactly as  >> Name: what they say  (no quote marks). 0-2 such lines per turn. Other speech stays inline in "double quotes".
+Formatting: short paragraphs. Wrap names of people as **Name** and names of places, factions, ships and organizations as __Name__. No other markdown, no headings.
+After the narration, on new lines, add machine-read tags (only those that apply):
+[[SCENE: short scene title, 2-5 words]]  (always include)
+[[ROLL: <STR|DEX|CON|INT|WIS|CHA> DC <8-20> | short reason]]
+[[CHOICES: option one | option two | option three]]  (2-3 suggested actions, under 8 words each)
+[[HP: <character name> -<n>]] or +<n> for healing
+[[XP: <character name or party> +<5-15>]]  (after overcoming a challenge, a clever idea or a great roleplay moment)
+[[GOLD: <character name> +<n>]] or -<n>
+[[ITEM: <character name> | +<item name> | <Weapon|Armor|Trinket|Consumable|Item>]]  or  [[ITEM: <character name> | -<item name>]]`;
+async function runGM(opening, isRewrite){
+  if (!T.isHost || T.busy) return;
+  if (!opening && !T.pending.length) return;
+  await ready; if (!SAMPLE) { $("#aiErr").textContent = ERRCOPY.unavailable; return; }
+  const acts = T.pending.splice(0); T.lastActs = acts.slice(); T.lastOpening = !!opening;
+  T.busy = true; setLamp("gm", true); $("#aiErr").textContent = "";
+  if (T.R) T.R.presence({ gmBusy:true }).catch(()=>{});
+  const recent = T.log.filter(e => !["sys","ooc"].includes(e.kind)).slice(-14).map(e => e.kind === "gm" ? `GM: ${stripTags(e.text)}` : e.kind === "npc" ? `${e.who} (NPC): ${e.text}` : e.kind === "roll" ? `[dice] ${e.text}` : `${e.who}: ${e.text}`).join("\n");
+  const party = partyList().map(c => `- ${c.name} (${c.pron || "they/them"}), level ${c.lvl || 1} ${c.cls}. HP ${c.hp}. Gold ${c.gold ?? "?"}. Looks: ${c.look || "n/a"}. From: ${c.origin || "n/a"}. Abilities: ${(c.abil||[]).join(", ")}. Carrying: ${(c.inv||[]).join(", ") || "nothing"} (* = equipped). ${c.hook ? "Hook: " + c.hook : ""} Stats: ${c.stats ? STATS.map(k => k + " " + c.stats[k]).join(", ") : "n/a"}`).join("\n");
+  const prompt = `${GM_RULES}
+
+WORLD: ${T.camp.name}${T.camp.anime ? " (play it with anime energy: dramatic reveals, named special moves, rivalries, inner-monologue beats)" : ""}
+PREMISE: ${T.camp.premise}
+PARTY:
+${party}
+CHRONICLE SO FAR: ${T.chron.summary || "(the story is just beginning)"}
+OPEN QUESTS: ${T.chron.quests.map(q => q.title + (q.steps?.length ? " [" + q.steps.map(x => (x.done ? "done: " : "todo: ") + x.text).join("; ") + "]" : "")).join(" | ") || "none yet"}
+COMPLETED QUESTS: ${T.done.join("; ") || "none"}
+KNOWN PEOPLE: ${T.chron.npcs.map(n => `${n.name} (${n.attitude})`).join(", ") || "none yet"}
+${T.notes.length ? "PLAYER CORRECTIONS (always respect these): " + T.notes.join(" | ") : ""}
+FATE: ${T.chron.fate}   ROUND: ${T.round + 1}
+${isRewrite ? "The players asked you to REWRITE your last turn: take the story in a noticeably different direction this time." : ""}
+
+RECENT TABLE:
+${recent || "(nothing yet)"}
+
+${opening ? "Open the campaign: set a vivid first scene and bring each party member into it, using their looks, origins and hooks. Introduce one named character who offers the party a clear first quest, with a reason and a reward." : "WHAT THE PARTY DOES NOW:\n" + acts.map(a => `${a.who}: ${a.text}`).join("\n")}`;
+  const node = renderEntry({ kind:"gm", text:"" }); node.classList.add("thinking"); const txt = node.querySelector(".txt"); txt.textContent = "The Game Master is setting the scene...";
+  try {
+    const { text } = await SAMPLE(prompt, { cache:false, seat:"gm", onText: ({ text }) => { node.classList.remove("thinking"); fmtTale(txt, stripTags(text)); } });
+    const story = stripTags(text);
+    const rm = text.match(/\[\[ROLL:\s*(STR|DEX|CON|INT|WIS|CHA)\s*DC\s*(\d+)\s*\|?([^\]]*)\]\]/i);
+    const cm = text.match(/\[\[CHOICES:([^\]]*)\]\]/i);
+    const sm = text.match(/\[\[SCENE:\s*([^\]]+)\]\]/i);
+    const entry = { kind:"gm", text:story, choices: cm ? cm[1].split("|").map(s => s.trim()).filter(Boolean).slice(0,3) : [], roll: rm ? { stat:rm[1].toUpperCase(), dc:Math.min(25,+rm[2]), why:rm[3].trim() } : null, round:T.round + 1, scene: sm ? sm[1].trim() : T.scene, effects: parseEffects(text) };
+    node.remove(); T.gmTurns++;
+    applyLog(entry);
+    if (T.R) T.R.emit("log", { ...entry, text:story.slice(0,3200) }).catch(()=>{});
+    if (T.gmTurns % 3 === 0 || opening) runChronicler();
+  } catch (e) {
+    node.remove(); if (e.code !== "cancelled") $("#aiErr").textContent = errText(e);
+    T.pending.unshift(...acts);
+  }
+  T.busy = false; setLamp("gm", false);
+  if (T.R) T.R.presence({ gmBusy:false }).catch(()=>{});
+  if (T.pending.length) { clearTimeout(T.timer); T.timer = setTimeout(() => runGM(false), 600); }
+}
+async function runChronicler(){
+  if (!SAMPLE) return; setLamp("ch", true);
+  const recent = T.log.filter(e => !["sys","ooc"].includes(e.kind)).slice(-16).map(e => (e.kind === "gm" ? "GM: " + stripTags(e.text) : (e.who || "") + ": " + e.text)).join("\n");
+  try {
+    const c = await SAMPLE.json(`You are the Chronicler of a tabletop RPG. Update the campaign memory.
+Previous summary: ${T.chron.summary || "(none)"}
+Previous quests: ${JSON.stringify(T.chron.quests)}
+Already completed (never repeat): ${JSON.stringify(T.done)}
+Previous named characters: ${JSON.stringify(T.chron.npcs)}
+Player characters (never list these as NPCs): ${partyList().map(c => c.name).join(", ")}
+Previous fate (-3 ruin .. +3 mercy): ${T.chron.fate}
+Recent play:
+${recent}
+Reply with only JSON: {"summary": under 130 words covering everything important so far, "quests": up to 5 OPEN quests as {"title": short, "kind": "Main"|"Side", "goal": one sentence, "giver": who asked (or ""), "reward": what was promised (or ""), "steps": 2-4 {"text": short objective, "done": true|false}} (keep titles stable between updates; remove finished or abandoned quests), "completed": titles of quests the party FINISHED since the previous update (usually empty), "npcs": up to 8 {"name": a non-player character the party has met, "attitude": "Hostile"|"Wary"|"Curious"|"Friendly"|"Loyal", "note": one sentence on who they are and what they want}, "fate": integer -3..3, moving at most 1 from the previous value}`, { modelTier:"quick", cache:false, seat:"chronicler" });
+    const f0 = T.chron.fate; T.chron = sanitizeChron(c); if (T.chron.fate !== f0) pulseClass($(".fate"), "pulse", 1000); handleCompleted(T.chron.completed);
+    renderSide(); saveSolo();
+    if (T.R) T.R.emit("log", { kind:"chron", chron:{ ...T.chron, summary:T.chron.summary.slice(0,900) } }).catch(()=>{});
+  } catch {}
+  setLamp("ch", false);
+}
+async function talkTo(who, line){
+  if (!who || !line || !T.on) return;
+  await ready; if (!SAMPLE) { $("#aiErr").textContent = ERRCOPY.unavailable; return; }
+  broadcast("act", { who:T.me.name, text:`(to ${who}) "${line}"`, talk:true });
+  setLamp("vo", true);
+  const ph = renderEntry({ kind:"sys", text:`${who} is thinking...` });
+  const recent = T.log.filter(e => !["sys","ooc"].includes(e.kind)).slice(-8).map(e => (e.kind === "gm" ? "GM: " + stripTags(e.text) : (e.who || "") + ": " + e.text)).join("\n");
+  const npc = T.chron.npcs.find(n => n.name === who);
+  try {
+    const { text } = await SAMPLE(`You voice one non-player character in a tabletop RPG. Stay fully in character with their own wants and secrets. Answer in 1-4 sentences of dialogue only: no name prefix, no quote marks, no narration for the players.
+World: ${T.camp.name}. ${T.camp.premise}
+Story so far: ${T.chron.summary || "(just beginning)"}
+${npc ? `${who} is ${npc.attitude.toLowerCase()} toward the party. ${npc.note}` : `If ${who} is new to the story, invent who they are so it fits the scene.`}
+Recent:
+${recent}
+${T.me.name} says to ${who}: "${line}"
+Reply as ${who}:`, { modelTier:"quick", cache:false, seat:"voices" });
+    const entry = { kind:"npc", who, text:text.trim().replace(/^["“]|["”]$/g, "") };
+    applyLog(entry);
+    if (T.R) T.R.emit("log", entry).catch(()=>{});
+    if (!T.chron.npcs.some(n => n.name.toLowerCase() === who.toLowerCase())) { T.chron.npcs = [...T.chron.npcs, { name:who, attitude:"Curious", note:"" }].slice(-10); renderSide(); }
+  } catch (e) { $("#aiErr").textContent = errText(e); }
+  ph.remove(); setLamp("vo", false);
+}
+
+/* ---------- boot ---------- */
+route(); loadData();
+})();
+</script>
+
+</body>
+</html>
