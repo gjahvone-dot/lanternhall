@@ -886,6 +886,8 @@ const allWorlds = () => [...CAMPAIGNS.filter(c => c.id !== "custom"), ...myWorld
 const worldById = id => allWorlds().find(w => w.id === id);
 /* painted portraits: a free image model paints the character from their description (website only; the Claude page keeps the drawing) */
 const PAINT = true;
+const isAnime = w => w && (w.cat === "anime" || w.anime);
+const wantV = c => isAnime(worldById(c.world)) ? 3 : 2;
 const isPainted = p => typeof p === "string" && p.startsWith("https://image.pollinations.ai/");
 /* art style follows the player's words; real-life photo is the default */
 const ART_STYLES = {
@@ -902,7 +904,7 @@ function portraitURL(c){
   const w = worldById(c.world) || {};
   const who = c.who || (c.pronouns === "he/him" ? "man" : c.pronouns === "she/her" ? "woman" : "person");
   const raw = (c.look || "").trim();
-  const st = ART_STYLES.photo;
+  const st = isAnime(w) ? ART_STYLES.anime : ART_STYLES.photo;
   const look = ((c.kin?.race?.look && !/^human/i.test(c.kin.race.look) ? c.kin.race.look + ". " : "") + ((c.lookPrompt || raw).replace(/[.\s]+$/, "") || (c.avatar ? describeAvatar(c.avatar) : "an adventurer")));
   const p = `${st.pre} ${who}. Exact appearance: ${look}. ${c.cls?.name ? `Role: ${c.cls.name}.` : ""} Setting: ${w.genre || "fantasy"} world. ${st.post}`;
   const seed = (hashStr(c.id + ":" + (c.paintSeed || 0)) % 999983) + 1;
@@ -917,7 +919,7 @@ async function briefLook(c){
     await ready; if (!SAMPLE) return;
     const r = await SAMPLE.json(`A player described how their tabletop RPG character looks. Turn it into a clear visual brief for an image generator.
 Description: """${raw.slice(0, 400)}"""
-Rules: keep EVERY detail they gave (gender, age, skin tone, hair style and color, eye color, facial hair, scars, marks, tattoos, clothes, colors, accessories, glow effects, body type, age). Put face and hair details first. Do not invent big new features. Write plain visual words, comma separated, under 70 words. It will be painted as a realistic photograph, so describe it as a real person (turn cartoon or anime words into real-life equivalents, e.g. "spiky green hair" stays, but no "cartoon").
+Rules: keep EVERY detail they gave (gender, age, skin tone, hair style and color, eye color, facial hair, scars, marks, tattoos, clothes, colors, accessories, glow effects, body type, age). Put face and hair details first. Do not invent big new features. Write plain visual words, comma separated, under 70 words. ${isAnime(worldById(c.world)) ? "It will be drawn as an anime character, so keep anime traits (spiky hair, big eyes, wild hair colors) but no art-style words." : "It will be painted as a realistic photograph, so describe it as a real person (turn cartoon or anime words into real-life equivalents, e.g. \"spiky green hair\" stays, but no \"cartoon\")."}
 Reply with only JSON: {"brief": "..."}`, { modelTier:"quick", cache:false, seat:"forge" });
     if (r && typeof r.brief === "string" && r.brief.trim()) c.lookPrompt = r.brief.trim().slice(0, 500);
   } catch {}
@@ -946,13 +948,13 @@ let paintBusy = false;
 async function paintMissing(){
   if (!PAINT || paintBusy) return; paintBusy = true;
   try {
-    for (const c of chars) if ((!c.portrait && !c.noPaint) || isPainted(c.portrait) || (c.painted && c.paintV !== 2)) {
-      try { c.portrait = await paintPortrait(c); c.painted = true; c.paintV = 2; await putDoc(c, "c"); rerender();
+    for (const c of chars) if (!c.portrait || isPainted(c.portrait) || (c.painted && c.paintV !== wantV(c))) {
+      try { c.portrait = await paintPortrait(c); c.painted = true; c.paintV = wantV(c); c.noPaint = false; await putDoc(c, "c"); rerender();
         if (typeof T !== "undefined" && T.me && T.me.id === c.id) { T.me.portrait = c.portrait; try { renderSide(); syncMe(); } catch {} }
         toast(`${c.name}'s portrait is ready.`); } catch { if (isPainted(c.portrait)) { c.portrait = null; } }
     }
   } finally { paintBusy = false; }
-  if (chars.some(c => !c.portrait && !c.noPaint)) setTimeout(paintMissing, 60000);
+  if (chars.some(c => !c.portrait)) setTimeout(paintMissing, 60000);
 }
 
 function rerender(){ const v = curView(); if (v === "home") renderHome(); if (v === "worlds") renderWorlds(); if (v === "characters") renderChars(); updateContinue(); }
@@ -968,7 +970,7 @@ function paintArt(cv, c){
   x.fillStyle = "#000"; x.beginPath(); x.ellipse(W/2, H*.44, W*.19, H*.2, 0, 0, Math.PI * 2); x.fill(); x.beginPath(); x.ellipse(W/2, H, W*.4, H*.37, 0, Math.PI, 0); x.fill();
   x.fillStyle = `hsl(${h} 90% 70%)`; x.font = `700 ${Math.round(W*.37)}px 'Grenze Gotisch', Georgia, serif`; x.textAlign = "center"; x.fillText(name.trim()[0]?.toUpperCase() || "?", W/2, H*.54);
 }
-function picInto(box, c){ box.textContent = ""; box.style.backgroundImage = ""; if (c.portrait) box.style.backgroundImage = `url("${c.portrait}")`; else if (c.avatar) box.innerHTML = avatarSVG(c.avatar); else { const cv = el("canvas"); cv.width = 320; cv.height = 400; box.append(cv); paintArt(cv, c); } }
+function picInto(box, c){ box.textContent = ""; box.style.backgroundImage = ""; if (c.portrait) box.style.backgroundImage = `url("${c.portrait}")`; else if (c.avatar && !PAINT) box.innerHTML = avatarSVG(c.avatar); else { const cv = el("canvas"); cv.width = 320; cv.height = 400; box.append(cv); paintArt(cv, c); } }
 function shrinkImage(file){
   return new Promise((res, rej) => {
     const url = URL.createObjectURL(file), img = new Image();
@@ -1115,7 +1117,7 @@ function buildCreator(host, av, onChange){
 function seeded(seed){ let s = (seed >>> 0) || 1; return () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; }
 function npcAvatar(name){ const r = seeded(hashStr(String(name).toLowerCase())); const p = a => a[Math.floor(r() * a.length)]; return { skin:p(AV.skin), hairC:p(AV.hairC), eyeC:p(AV.eyeC), outC:p(AV.outC), bg:p(AV.bg), face:p(AV.face), eyes:p(AV.eyes), brows:p(AV.brows), hair:p(AV.hair), facial:r() < .65 ? "none" : p(AV.facial), marks:r() < .7 ? "none" : p(AV.marks), build:p(AV.build), outfit:p(AV.outfit), extra:r() < .8 ? "none" : p(AV.extra) }; }
 /* realistic faces for the people you meet (website only; painted one at a time, kept in this browser) */
-const npcKey = name => ((T.camp?.id || "x") + ":" + String(name).toLowerCase().trim()).slice(0, 90);
+const npcKey = name => ((isAnime(T.camp) ? "a:" : "") + (T.camp?.id || "x") + ":" + String(name).toLowerCase().trim()).slice(0, 90);
 const npcPics = (() => { try { return JSON.parse(localStorage.getItem("lh.npcpics") || "{}"); } catch { return {}; } })();
 const npcQueue = []; let npcBusy = false, npcLast = 0;
 function queueNpcFaces(){
@@ -1143,8 +1145,9 @@ async function pumpNpc(){
   } catch { if (!job.tries) { job.tries = 1; npcQueue.push(job); } }
   npcLast = Date.now(); npcBusy = false; if (npcQueue.length) setTimeout(pumpNpc, 47000);
 }
+function silhouette(name){ const h = [0, 18, 200, 268, 340, 160][hashStr(String(name)) % 6]; return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><radialGradient id="sg${h}" cx="50%" cy="35%" r="75%"><stop offset="0" stop-color="hsl(${h} 45% 30%)"/><stop offset="1" stop-color="#05070c"/></radialGradient></defs><rect width="100" height="100" fill="url(#sg${h})"/><ellipse cx="50" cy="40" rx="17" ry="20" fill="#000a"/><path d="M14 100c4-24 18-33 36-33s32 9 36 33z" fill="#000a"/></svg>`; }
 function faceEl(name, avatar, portrait){ const f = el("div","face");
-  if (!portrait && !avatar && PAINT && T.camp) { const k = npcKey(name); f.dataset.npc = k; if (npcPics[k]) portrait = npcPics[k]; } if (portrait) { const i = el("img"); i.src = portrait; i.alt = ""; f.append(i); } else f.innerHTML = avatarSVG(avatar || npcAvatar(name), true); return f; }
+  if (!portrait && !avatar && PAINT && T.camp) { const k = npcKey(name); f.dataset.npc = k; if (npcPics[k]) portrait = npcPics[k]; } if (portrait) { const i = el("img"); i.src = portrait; i.alt = ""; f.append(i); } else f.innerHTML = PAINT ? silhouette(name) : avatarSVG(avatar || npcAvatar(name), true); return f; }
 function whoFace(name){
   if (T.me && name === T.me.name) return faceEl(name, T.me.avatar, T.me.portrait);
   const peer = (T.peers || []).find(p => p.presence?.char?.name === name);
@@ -1344,12 +1347,12 @@ function editChar(c, after){
     const av = { ...(c.avatar || randomAvatar()) }; let avOpen = false;
     const crHost = el("div"); crHost.hidden = true;
     const crBtn = el("button","btn small","Edit face & body"); crBtn.addEventListener("click", () => { avOpen = true; crBtn.hidden = true; crHost.hidden = false; buildCreator(crHost, av); });
-    body.append(crBtn, crHost);
+    if (!PAINT) body.append(crBtn, crHost);
     let repaint = false;
     if (PAINT) {
       const pv = el("div","paintprev"); if (c.portrait) pv.style.backgroundImage = `url("${c.portrait}")`;
       const pb = el("button","btn small","Paint a new portrait"); const ps = el("span","status");
-      pb.addEventListener("click", async () => { pb.disabled = true; ps.textContent = "Painting..."; const tmp = { ...c, look: lk.value.trim() || c.look, paintSeed: (c.paintSeed || 0) + 1 }; try { const u = await paintPortrait(tmp, () => ps.textContent = "The free painter allows one picture every 45 seconds. Waiting..."); c.paintSeed = tmp.paintSeed; c.portrait = u; c.painted = true; c.paintV = 2; c.lookPrompt = tmp.lookPrompt; c.lookFrom = tmp.lookFrom; c.artStyle = tmp.artStyle; c.noPaint = false; pv.style.backgroundImage = `url("${u}")`; ps.textContent = "Like it? Save changes to keep it."; repaint = true; } catch { ps.textContent = "The painter is busy. Try again in a minute."; } pb.disabled = false; });
+      pb.addEventListener("click", async () => { pb.disabled = true; ps.textContent = "Painting..."; const tmp = { ...c, look: lk.value.trim() || c.look, paintSeed: (c.paintSeed || 0) + 1 }; try { const u = await paintPortrait(tmp, () => ps.textContent = "The free painter allows one picture every 45 seconds. Waiting..."); c.paintSeed = tmp.paintSeed; c.portrait = u; c.painted = true; c.paintV = wantV(c); c.lookPrompt = tmp.lookPrompt; c.lookFrom = tmp.lookFrom; c.artStyle = tmp.artStyle; c.noPaint = false; pv.style.backgroundImage = `url("${u}")`; ps.textContent = "Like it? Save changes to keep it."; repaint = true; } catch { ps.textContent = "The painter is busy. Try again in a minute."; } pb.disabled = false; });
       const r = el("div","portraitIn"); r.append(pv, pb, ps); body.append(fieldOf("Painted portrait (made from their description)", r));
     }
     body.append(fieldOf("Name", nm), fieldOf("Other appearance details", lk), fieldOf("Where they come from", og), fieldOf("Backstory", bs), fieldOf("Portrait (an image you own)", pf));
@@ -1478,7 +1481,7 @@ function renderWizard(){
     const t = el("textarea"); t.id = "wzLook"; t.maxLength = 400; t.placeholder = "Tall and wiry, dark skin, long silver braids, a scar over one eye, a red coat..."; t.value = WZ.draft.look;
     const lr = el("div","lrow"); const cnt = el("span","count"); lr.append(el("span","label","Appearance"), cnt);
     const upd = () => cnt.textContent = `${t.value.length}/400`; upd(); t.addEventListener("input", upd);
-    const fine = el("details","fine"); fine.dataset.nofacegen = ""; fine.append(el("summary",null, PAINT ? "Prefer a cartoon drawing, or your own picture?" : "Fine-tune the drawing, or upload a picture"));
+    const fine = el("details","fine"); fine.dataset.nofacegen = ""; fine.append(el("summary",null, PAINT ? "Use your own picture instead?" : "Fine-tune the drawing, or upload a picture"));
     const fin = el("div"); const cr = el("div"); buildCreator(cr, WZ.draft.avatar);
     const pin = el("div","portraitIn"); const img = el("img"); img.alt = ""; img.hidden = !WZ.draft.portrait; if (WZ.draft.portrait) img.src = WZ.draft.portrait;
     const f = el("input"); f.type = "file"; f.accept = "image/*"; f.id = "wzPic"; f.style.maxWidth = "260px";
@@ -1489,8 +1492,8 @@ function renderWizard(){
     const doDraw = async () => { const d = t.value.trim(); if (!d || !window.lhFace) return false; try { await window.lhFace.build(cr, d); WZ.draft.lookBuilt = d; return true; } catch (e) { dst.textContent = errText(e); return false; } };
     draw.addEventListener("click", async () => { draw.disabled = true; dst.textContent = "Drawing..."; if (await doDraw()) dst.textContent = "Done. Tweak anything below."; draw.disabled = false; });
     const dr = el("div","row"); dr.append(draw, dst);
-    fin.append(dr, cr, fieldOf("Your own picture (an image you own)", pin));
-    if (PAINT) { const lab = el("label","row"); const cb = el("input"); cb.type = "checkbox"; cb.id = "wzNoPaint"; cb.checked = !!WZ.draft.noPaint; cb.addEventListener("change", () => WZ.draft.noPaint = cb.checked); lab.append(cb, el("span",null,"Use this drawing instead of a painted portrait")); fin.prepend(lab); }
+    if (PAINT) { clr.textContent = "Remove picture"; fin.append(fieldOf("Your own picture (an image you own)", pin)); } else fin.append(dr, cr, fieldOf("Your own picture (an image you own)", pin));
+    if (false) { const lab = el("label","row"); const cb = el("input"); cb.type = "checkbox"; cb.id = "wzNoPaint"; cb.checked = !!WZ.draft.noPaint; cb.addEventListener("change", () => WZ.draft.noPaint = cb.checked); lab.append(cb, el("span",null,"Use this drawing instead of a painted portrait")); fin.prepend(lab); }
     fine.append(fin);
     const n = nextBtn("Continue →", async () => {
       WZ.draft.look = t.value.trim();
@@ -1507,10 +1510,12 @@ function renderWizard(){
     box.append(lr, t, nextBtn("Continue →", () => { WZ.draft.origin = t.value.trim(); WZ.step = "class"; renderWizard(); })); t.focus(); return;
   }
   if (s === "class") {
-    const box = wizardFrame("Pick a class.", `Classes native to ${WZ.world.name}. Tap one to see what it does.`);
+    const fac = WZ.draft.kin?.faction, ck = classKey(WZ.world, WZ.draft.kin);
+    if (WZ.classesFor !== ck) { WZ.classes = null; WZ.classesFor = ck; if (WZ.draft.cls && !WZ.draft.cls.custom) WZ.draft.cls = null; }
+    const box = wizardFrame("Pick a class.", fac ? `Roles open to someone from ${fac.name}. Tap one to see what it does.` : WZ.draft.kin && "faction" in WZ.draft.kin ? `Roles for someone who answers to no one in ${WZ.world.name}. Tap one to see what it does.` : `Classes native to ${WZ.world.name}. Tap one to see what it does.`);
     const acc = el("div","acc"); box.append(acc);
     const st = el("p","status"); box.append(st);
-    if (!WZ.classes) { for (let i = 0; i < 3; i++) acc.append(el("div","skel")); st.textContent = "The Forge is shaping this world's classes..."; loadWorldClasses(WZ.world).then(list => { WZ.classes = list; if (WZ.step === "class") renderWizard(); }); }
+    if (!WZ.classes) { for (let i = 0; i < 6; i++) acc.append(el("div","skel")); st.textContent = fac ? `The Forge is shaping the roles of ${fac.name}...` : "The Forge is shaping this world's classes..."; loadWorldClasses(WZ.world, WZ.draft.kin).then(list => { if (WZ.classesFor !== ck) return; WZ.classes = list; if (WZ.step === "class") renderWizard(); }); }
     else {
       WZ.classes.forEach((c, i) => acc.append(classCard(c, i)));
       acc.append(customClassCard());
@@ -1539,8 +1544,8 @@ async function finishChar(btn){
   const dr = WZ.draft; const base = rollStats();
   const stats = {}; for (const k of STATS) stats[k] = base[k] + (dr.cls.bonus?.[k] || 0) + (dr.kin?.race?.bonus?.[k] || 0);
   const c = { kin:dr.kin && (dr.kin.race || dr.kin.faction) ? { race:dr.kin.race ? { name:dr.kin.race.name, look:dr.kin.race.look || "", blurb:dr.kin.race.blurb || "", custom:!!dr.kin.race.custom } : null, faction:dr.kin.faction ? { name:dr.kin.faction.name, blurb:dr.kin.faction.blurb || "", custom:!!dr.kin.faction.custom } : null } : null, id:dr.id, world:dr.world, name:dr.name, pronouns:dr.pronouns, look:dr.look, origin:dr.origin, cls:dr.cls, stats, story:null, portrait:dr.portrait, avatar:dr.avatar, hp:Math.max(1, (dr.cls.hitDie || 8) + mod(stats.CON)), updated:Date.now() };
-  if (PAINT && !c.portrait && !dr.noPaint) { if (btn) btn.textContent = `Painting ${c.name}'s portrait...`; try { c.portrait = await paintPortrait(c, null, 1); c.painted = true; c.paintV = 2; } catch { c.portrait = null; setTimeout(() => { toast("Still painting the portrait; it will appear when it's ready."); paintMissing(); }, 3000); } }
-  if (dr.noPaint) c.noPaint = true;
+  if (PAINT && !c.portrait) { if (btn) btn.textContent = `Painting ${c.name}'s portrait...`; try { c.portrait = await paintPortrait(c, null, 1); c.painted = true; c.paintV = wantV(c); } catch { c.portrait = null; setTimeout(() => { toast("Still painting the portrait; it will appear when it's ready."); paintMissing(); }, 3000); } }
+  if (dr.noPaint && !PAINT) c.noPaint = true;
   await saveChar(c); forgeStory(c, WZ.world);
   return c;
 }
@@ -1581,8 +1586,8 @@ Reply with only JSON: {"race": {"label": "Race" or "Species" or "Clan" etc, "ite
   } catch { return null; }
 }
 function classCard(c, i){
-  const hues = ["#7ee0c2","#c79bff","#7cc7f0"]; const open = WZ.openCls === c.name, sel = WZ.draft.cls?.name === c.name;
-  const card = el("div","cls" + (c.custom ? " custom" : "")); if (!c.custom) card.style.setProperty("--hue", hues[i % 3]); if (open) card.setAttribute("open","");
+  const hues = ["#7ee0c2","#c79bff","#7cc7f0","#f2c14e","#ff8f7a","#9fd86b"]; const open = WZ.openCls === c.name, sel = WZ.draft.cls?.name === c.name;
+  const card = el("div","cls" + (c.custom ? " custom" : "")); if (!c.custom) card.style.setProperty("--hue", hues[i % hues.length]); if (open) card.setAttribute("open","");
   const head = el("button"); head.setAttribute("aria-expanded", String(open));
   head.append(el("span","cn",c.name), el("span","sel", sel ? "SELECTED" : `d${c.hitDie} · ${c.primary}`));
   head.addEventListener("click", () => { WZ.openCls = open ? null : c.name; WZ.draft.cls = c; renderWizard(); });
@@ -1611,7 +1616,7 @@ function customClassCard(){
     go2.addEventListener("click", async () => {
       if (!t.value.trim()) return; await ready; if (!SAMPLE) { st.textContent = ERRCOPY.unavailable; return; }
       go2.disabled = true; st.textContent = "Forging...";
-      try { const list = await genClasses(WZ.world, 1, t.value.trim()); const c = { ...list[0], custom:true }; WZ.classes = [...WZ.classes.filter(x => !x.custom), c]; WZ.draft.cls = c; WZ.openCls = c.name; renderWizard(); }
+      try { const list = await genClasses(WZ.world, 1, t.value.trim(), WZ.draft.kin); const c = { ...list[0], custom:true }; WZ.classes = [...WZ.classes.filter(x => !x.custom), c]; WZ.draft.cls = c; WZ.openCls = c.name; renderWizard(); }
       catch (e) { st.textContent = errText(e); go2.disabled = false; }
     });
     b.append(el("p","muted","Describe any concept. The Forge builds its stats, skills, abilities and gear for this world."), t, go2, st); card.append(b);
@@ -1625,22 +1630,35 @@ function cleanClass(c){
     abilities:(Array.isArray(c?.abilities) ? c.abilities : []).slice(0,3).map(a => ({ name:String(a?.name||"").slice(0,30), desc:String(a?.desc||"").slice(0,180) })),
     kit:(Array.isArray(c?.kit) ? c.kit : []).slice(0,4).map(k => ({ name:String(k?.name||"").slice(0,40), cat:CATS.includes(k?.cat) ? k.cat : "Item" })).filter(k => k.name) };
 }
-async function genClasses(w, n, concept){
-  const r = await SAMPLE.json(`You design ${n === 1 ? "one playable class" : "three distinct playable starting classes"} for a tabletop RPG set in this world. They must feel native to it (use its vocabulary, factions and powers), and must be original: no names from existing franchises.
+function classKey(w, kin){ const f = kin?.faction; return w.id + "|" + (f ? (f.custom ? "own:" : "") + f.name : kin && "faction" in kin ? "none" : "") .toLowerCase().slice(0, 60); }
+function factionBrief(w, kin){
+  if (!kin) return "";
+  const f = kin.faction, r = kin.race;
+  const who = r ? `The character is ${r.name}${r.blurb ? " (" + r.blurb + ")" : ""}. ` : "";
+  if (f) return `${who}FACTION: the character belongs to ${f.name}${f.blurb ? " (" + f.blurb + ")" : ""}. Every class must be a real ROLE INSIDE THIS FACTION, named the way this faction names its own ranks, orders and jobs, with abilities and kit only this faction would have. Think about what kinds of people this group actually has: e.g. an evil galactic empire has rank-and-file armored troopers, officers, starfighter pilots, dark-power apprentices, spies and engineers; a rebel movement has guerrillas, pilots, slicers, smugglers-turned-agents and field medics; a great noble house has sworn swords, knights, maesters, spymasters, archers and stewards; a ninja village has its own elite units, medics, sensors and trackers.`;
+  if (kin && "faction" in kin) return `${who}FACTION: none. The character belongs to no kingdom, house, village or side: an outsider, rogue or drifter. Every class must be a role for someone outside the factions (sellswords, outlaws, bandits, bounty hunters, hedge-mages, wandering healers, scavengers, rogue fighters...).`;
+  return who;
+}
+async function genClasses(w, n, concept, kin, styles){
+  const fb = factionBrief(w, kin);
+  const r = await SAMPLE.json(`You design ${n === 1 ? "one playable class" : n + " distinct playable starting classes"} for a tabletop RPG set in this world. They must feel native to it (use its vocabulary, factions and powers), and must be original: no names from existing franchises.
 WORLD: ${w.name} (${w.genre}). ${w.premise}
-${concept ? "PLAYER CONCEPT: " + concept : w.crime ? "Cover different play styles: one muscle/enforcer type, one talker/schemer type, one specialist type (driver, safecracker, doctor, accountant, sniper...)." : "Cover different play styles: one fighter-type, one skill/social-type, one power/magic-or-tech type."}
+${fb}
+${concept ? "PLAYER CONCEPT: " + concept : styles ? "Make exactly these " + n + " play styles, one class each, every one different to play: " + styles + ". Vary hit dice (6 to 12) and primary stats." : w.crime ? "Cover different play styles: muscle/enforcer, talker/schemer, shooter, driver or getaway specialist, safecracker or thief, and a doctor/accountant/fixer type. Every class must feel different to play." : "Cover clearly different play styles, every class different to play: a frontline fighter, a heavy or armored soldier, a ranged specialist or pilot, a leader/social or command type, a sneaky scout/spy/assassin type, and a power-user (magic, special energy, curse technique or high tech, whatever this world has) or healer/support. Vary hit dice (6 to 12) and primary stats."}
 ${w.nomagic ? "This is a GROUNDED SURVIVAL world: NO magic or superpowers. Classes are ordinary survivors (ex-soldier, medic, mechanic, scavenger, hunter...) with realistic skills and gear. Arcana does not apply." : ""}
 ${w.crime ? "This is a GROUNDED CRIME world: NO magic, superpowers or supernatural abilities of any kind. Abilities must be realistic human skills and tricks (a favor from a cop, a hidden pistol, a getaway route, intimidation, an accountant's eye). Kit is ordinary: guns, knives, cars, cash, suits, tools. Arcana does not apply; pick other skills." : ""}
 Reply with only a JSON array of ${n} objects: {"name": 1-3 words, "blurb": under 20 words, "hitDie": 6|8|10|12, "primary": "STR"|"DEX"|"CON"|"INT"|"WIS"|"CHA", "bonus": {"<STAT>": +2, "<STAT>": +1, "<STAT>": -1}, "skills": 3 picked from ${JSON.stringify(ALLSKILLS)}, "abilities": [2 {"name": short, "desc": one playable sentence}], "kit": [3 {"name": starting item that fits the world, "cat": "Weapon"|"Armor"|"Trinket"|"Consumable"|"Item"}]}`, { modelTier:"quick", cache:false, seat:"forge" });
   const arr = Array.isArray(r) ? r : [r]; if (!arr.length) throw { code:"invalid_json" };
   return arr.slice(0, n).map(cleanClass);
 }
-async function loadWorldClasses(w){
-  const key = "lh.wc." + w.id + (w.crime || w.nomagic ? ".r1" : "");
-  if (worldClassCache[w.id]) return worldClassCache[w.id];
-  const cached = store.get(key, null); if (cached?.length) return (worldClassCache[w.id] = cached);
+async function loadWorldClasses(w, kin){
+  const ck = classKey(w, kin); const key = "lh.wc6." + ck;
+  if (worldClassCache[ck]) return worldClassCache[ck];
+  const cached = store.get(key, null); if (cached?.length) return (worldClassCache[ck] = cached);
   await ready;
-  if (SAMPLE) { try { const list = await genClasses(w, 3); if (list.length >= 2) { store.set(key, list); return (worldClassCache[w.id] = list); } } catch {} }
+  if (SAMPLE) { for (let a = 0; a < 2; a++) { try { const halves = w.crime ? ["muscle/enforcer, a shooter, a getaway driver", "a talker/schemer, a safecracker or thief, a doctor/accountant/fixer"] : ["a frontline melee fighter, a heavy or armored soldier, a ranged specialist or pilot", "a leader/social or command role, a sneaky scout/spy/assassin, a power-user (magic, special energy, curse technique or high tech, whatever this world has) or healer"];
+        const parts = await Promise.allSettled(halves.map(s => genClasses(w, 3, null, kin, s)));
+        const list = parts.flatMap(x => x.status === "fulfilled" ? x.value : []); if (list.length >= 4) { const seen = new Set(); const uniq = list.filter(c => !seen.has(c.name.toLowerCase()) && seen.add(c.name.toLowerCase())); store.set(key, uniq); return (worldClassCache[ck] = uniq); } } catch {} } }
   return (w.crime ? CRIME_CLASSES : w.nomagic ? SURVIVOR_CLASSES : FALLBACK_CLASSES).map(cleanClass);
 }
 function rollStats(){ const o = {}; for (const k of STATS) { const r = [d(6),d(6),d(6),d(6)].sort((a,b)=>a-b); o[k] = r[1]+r[2]+r[3]; } return o; }
@@ -1658,7 +1676,6 @@ let hostSaveT = null;
 function saveHost(){ if (T.mode !== "multi" || !T.isHost || !T.code || !T.me || !T.camp) return; clearTimeout(hostSaveT); hostSaveT = setTimeout(() => store.set("lh.host." + T.code, { ...snapState(), code:T.code, camp:T.camp, charId:T.me.id, ts:Date.now() }), 800); }
 function saveSolo(){ if (T.mode === "multi") { saveHost(); return; } if (T.mode !== "solo" || !T.me) return; store.set(soloKey(T.camp.id, T.me.id), { combat:T.combat, log:T.log.slice(-80), round:T.round, chron:T.chron, notes:T.notes, done:T.done, offers:T.offers, gmTurns:T.gmTurns, scene:T.scene, me:{ hpCur:T.me.hpCur, hpMax:T.me.hpMax, xp:T.me.xp, level:T.me.level, gold:T.me.gold, inv:T.me.inv } }); }
 const xpNeed = () => 10 * (T.me.level || 1);
-const isAnime = w => w && (w.cat === "anime" || w.anime);
 
 async function startGame(mode, c, w, code){
   await ready;
@@ -1788,7 +1805,7 @@ let speakingBtn = null;
 function sayCard(name, line){
   const w = el("div","say"); const h = hashStr(name);
   const av = el("div","av"); const pk = PAINT && T.camp ? npcKey(name) : null;
-  if (pk && npcPics[pk]) { const i = el("img"); i.src = npcPics[pk]; i.alt = ""; av.append(i); } else av.innerHTML = avatarSVG(npcAvatar(name), true);
+  if (pk && npcPics[pk]) { const i = el("img"); i.src = npcPics[pk]; i.alt = ""; av.append(i); } else av.innerHTML = PAINT ? silhouette(name) : avatarSVG(npcAvatar(name), true);
   if (pk) { av.classList.add("face"); av.dataset.npc = pk; }
   const t = el("div"); t.append(el("div","sn",name), el("div","sl",line));
   if (T.on) {
