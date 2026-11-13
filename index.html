@@ -1562,7 +1562,11 @@ async function startGame(mode, c, w, code){
     const prev = code ? store.get("lh.host." + code, null) : null;
     const code2 = prev ? code : Array.from({length:5}, () => "ABCDEFGHJKMNPQRSTUVWXYZ23456789"[Math.floor(Math.random()*31)]).join("");
     if (prev) {
-      try { await openRoom(code2, true); } catch (e) { toast("Couldn't reopen the table."); resetT(); return false; }
+      try { await openRoom(code2, false); } catch (e) { toast(e.code === "full" ? "That table is full." : "Couldn't reopen the table."); resetT(); return false; }
+      if ((T.peers || []).some(p => p.presence?.host && !p.sameTab)) {
+        T.camp = null; showTable(); addEntry({ kind:"sys", text:"Your friends kept the story going while you were away. Catching up..." }); rememberTable(code2, false); return true;
+      }
+      T.isHost = true; await T.R.presence({ host:true }).catch(() => {});
       T.round = prev.round || 0; T.gmTurns = prev.gmTurns || 0; T.chron = sanitizeChron(prev.chron); T.notes = prev.notes || []; T.done = prev.done || []; T.offers = prev.offers || []; T.scene = prev.scene || "";
       if (prev.me) Object.assign(T.me, prev.me); if (prev.combat) setCombat(prev.combat, false);
       showTable(); (prev.log || []).forEach(e => addEntry(e, false));
@@ -2065,9 +2069,13 @@ async function openRoom(code, host){
   let firstPeers; const gotPeers = new Promise(r => firstPeers = r);
   R.onPeers(ch => {
     const hostNow = ch.peers.some(p => p.presence?.host && !p.sameTab);
-    if (!T.isHost && T.hostSeen && !hostNow && T.on) { T.synced = false; addEntry({ kind:"sys", text:"The host disconnected. Stay here: when they reopen the table, the story continues for everyone. Or tap Become the host to keep the story going from your tab." }); }
+    if (!T.isHost && T.hostSeen && !hostNow && T.on) { T.synced = false; addEntry({ kind:"sys", text:"A player's tab closed. The AI Game Master is moving to another player's tab so the story keeps going..." }); }
     if (!T.isHost && hostNow && T.hostSeen === false) addEntry({ kind:"sys", text:"The host is back." });
     if (!T.isHost) T.hostSeen = hostNow ? true : (T.hostSeen ? false : T.hostSeen);
+    if (!T.isHost && !hostNow && T.on && T.hostSeen === false) {
+      const ids = ch.peers.filter(p => p.presence?.char).map(p => p.peer).sort(); const me = ch.peers.find(p => p.sameTab)?.peer;
+      if (me && ids[0] === me) { clearTimeout(T.autoHostT); T.autoHostT = setTimeout(() => { const still = (T.peers || []).some(p => p.presence?.host && !p.sameTab); if (!still && !T.isHost && T.on) $("#claimHost").click(); }, 4000); }
+    }
     T.peers = ch.peers.slice(); firstPeers(); renderParty(); if (T.isHost && ch.joined.some(p => !p.isMe)) sendSync(); });
   if (!host) {
     await Promise.race([gotPeers, new Promise(r => setTimeout(r, 1500))]);
