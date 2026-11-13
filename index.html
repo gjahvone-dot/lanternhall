@@ -411,6 +411,11 @@ details.fine>div{padding:0 14px 14px;display:flex;flex-direction:column;gap:14px
   .wbar input{max-width:none;margin-left:0}
 }
 /* ---- polish pass ---- */
+.kgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-bottom:6px}
+.kopt{display:flex;flex-direction:column;gap:3px;text-align:left;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:12px;padding:10px 12px;cursor:pointer}
+.kopt span{font-size:13px;color:var(--muted)}
+.kopt small{font:600 11px var(--mono);color:#7ee0c2}
+.kopt[aria-pressed="true"]{border-color:var(--gold);background:#f2c14e14;box-shadow:0 0 0 1px var(--gold) inset}
 .partybar{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;margin-bottom:10px;scrollbar-width:thin}
 .partybar .pm{display:flex;align-items:center;gap:8px;min-width:170px;max-width:240px;flex:1;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:7px 10px;color:var(--ink);cursor:pointer}
 .partybar .pm:hover{border-color:#ffffff40}
@@ -892,7 +897,7 @@ function portraitURL(c){
   const who = c.pronouns === "he/him" ? "man" : c.pronouns === "she/her" ? "woman" : "person";
   const raw = (c.look || "").trim();
   const st = ART_STYLES.photo;
-  const look = (c.lookPrompt || raw).replace(/[.\s]+$/, "") || (c.avatar ? describeAvatar(c.avatar) : "an adventurer");
+  const look = ((c.kin?.race?.look && !/^human/i.test(c.kin.race.look) ? c.kin.race.look + ". " : "") + ((c.lookPrompt || raw).replace(/[.\s]+$/, "") || (c.avatar ? describeAvatar(c.avatar) : "an adventurer")));
   const p = `${st.pre} ${who}. Exact appearance: ${look}. ${c.cls?.name ? `Role: ${c.cls.name}.` : ""} Setting: ${w.genre || "fantasy"} world. ${st.post}`;
   const seed = (hashStr(c.id + ":" + (c.paintSeed || 0)) % 999983) + 1;
   return "https://image.pollinations.ai/prompt/" + encodeURIComponent(p.slice(0, 900)) + `?width=512&height=704&seed=${seed}&nologo=true&model=flux`;
@@ -1161,6 +1166,7 @@ function updateContinue(){
 }
 
 /* ---------- home ---------- */
+const KIN = {"starfall": {"race": {"label": "Species", "items": [{"name": "Human", "blurb": "Adaptable, found on every world in the galaxy", "look": "human", "bonus": {"CHA": 1}}, {"name": "Veyari", "blurb": "Horned, blue-skinned diplomats with perfect memory", "look": "blue-skinned humanoid with small curved horns and pale silver eyes", "bonus": {"INT": 1, "CHA": 1}}, {"name": "Kurrok", "blurb": "Towering, fur-covered warriors from a jungle world", "look": "tall muscular humanoid covered in thick brown fur with a lion-like face", "bonus": {"STR": 2}}, {"name": "Sylith", "blurb": "Amphibious, wide-eyed and quick in water", "look": "amphibious humanoid with smooth teal skin, large dark eyes and gill slits on the neck", "bonus": {"DEX": 1, "WIS": 1}}, {"name": "Synth", "blurb": "Self-aware machine who chose a name", "look": "humanoid android with a brushed-metal body and glowing eye lenses", "bonus": {"CON": 2}}]}, "faction": {"label": "Allegiance", "none": "No side (drifter)", "items": [{"name": "The Rebellion", "blurb": "Ragtag fighters trying to bring the Emperor down"}, {"name": "The Empire", "blurb": "Order, power and a uniform that opens doors"}, {"name": "Starfall Order (survivor)", "blurb": "One of the last lightblade knights, in hiding"}, {"name": "Smuggler Syndicates", "blurb": "Cargo, credits and no questions asked"}]}}, "lonehelm": {"race": {"label": "Species", "items": [{"name": "Human", "blurb": "Adaptable, found on every frontier world", "look": "human", "bonus": {"CHA": 1}}, {"name": "Veyari", "blurb": "Horned, blue-skinned and sharp-minded", "look": "blue-skinned humanoid with small curved horns", "bonus": {"INT": 1, "CHA": 1}}, {"name": "Kurrok", "blurb": "Huge furred warrior", "look": "tall muscular humanoid covered in brown fur", "bonus": {"STR": 2}}, {"name": "Synth", "blurb": "Battered old machine with a code of its own", "look": "weathered humanoid android with one glowing eye", "bonus": {"CON": 2}}]}, "faction": {"label": "Allegiance", "none": "No one (lone hunter)", "items": [{"name": "The Helm Creed", "blurb": "Armored warrior clan that never removes its helmets"}, {"name": "Bounty Guild", "blurb": "Paid by the job, protected by the guild"}, {"name": "Imperial Remnant", "blurb": "Leftover officers still giving orders"}]}}, "starbreaker": {"race": {"label": "Race", "items": [{"name": "Earthling", "blurb": "Ordinary human with an unbreakable will", "look": "human martial artist", "bonus": {"WIS": 1, "CHA": 1}}, {"name": "Vargan", "blurb": "Warrior race that grows stronger after every beating and can transform", "look": "spiky-haired warrior with a lean muscular build and a fierce stare", "bonus": {"STR": 2}}, {"name": "Verdan", "blurb": "Green-skinned, antenna-crowned healers and fighters who can regrow limbs", "look": "green-skinned humanoid with two antennae on the forehead and pointed ears", "bonus": {"CON": 1, "WIS": 1}}, {"name": "Frost Clan", "blurb": "Pale, horned tyrant bloodline with icy power", "look": "pale white humanoid with smooth armored skin, small horns and red eyes", "bonus": {"INT": 1, "CON": 1}}, {"name": "Android", "blurb": "Built in a lab, endless energy", "look": "humanoid android who looks almost human, with a faint seam along the jaw", "bonus": {"CON": 2}}, {"name": "Half-Vargan", "blurb": "Half Earthling, half Vargan, with hidden potential", "look": "young fighter with spiky hair and kind eyes", "bonus": {"STR": 1, "WIS": 1}}]}, "faction": {"label": "Training school", "none": "Self-taught", "items": [{"name": "Crane Peak School", "blurb": "Precise techniques and deadly focus"}, {"name": "Island Hermit's School", "blurb": "Old master, weighted shells, endless laps"}, {"name": "Galactic Patrol", "blurb": "Space police with very strict rules"}]}}, "crimsonleaf": {"race": {"label": "Clan", "items": [{"name": "Ember-Eye Clan", "blurb": "Bloodline eyes that copy techniques", "look": "ninja with striking red eyes", "bonus": {"INT": 1, "DEX": 1}}, {"name": "Shadow-Bind Clan", "blurb": "Manipulate shadows to trap enemies", "look": "lazy-looking ninja with tied-back hair", "bonus": {"INT": 2}}, {"name": "Beast-Bond Clan", "blurb": "Fight beside a ninja hound with marked cheeks", "look": "ninja with red fang markings on the cheeks and a hound at their side", "bonus": {"STR": 1, "WIS": 1}}, {"name": "Iron-Bone Clan", "blurb": "Bones as hard as steel", "look": "pale ninja with sharp features", "bonus": {"CON": 2}}, {"name": "Clanless", "blurb": "No special bloodline, just stubborn hard work", "look": "ninja in an orange-and-blue jumpsuit with a headband", "bonus": {"CHA": 1, "CON": 1}}]}, "faction": {"label": "Village", "none": "Rogue ninja (no village)", "items": [{"name": "Crimson Leaf Village", "blurb": "Forest village, fire-style techniques"}, {"name": "Dune Hollow", "blurb": "Desert village of sand techniques and puppeteers"}, {"name": "Fogwater", "blurb": "Misty village known for silent killers"}, {"name": "Thunderpeak", "blurb": "Mountain village of lightning ninjas"}, {"name": "Granite Gate", "blurb": "Stone village, earth-style walls"}]}}, "cursedledger": {"race": {"label": "What you are", "items": [{"name": "Sorcerer", "blurb": "Trained to use cursed energy and techniques", "look": "young sorcerer in a dark high-collared school uniform", "bonus": {"INT": 1, "WIS": 1}}, {"name": "Cursed Vessel", "blurb": "A powerful curse lives inside your body", "look": "teenager in a dark school uniform with faint black markings under the eyes", "bonus": {"STR": 1, "CON": 1}}, {"name": "Curse User", "blurb": "Sorcerer who sides with curses for power", "look": "sorcerer in loose robes with stitched scars", "bonus": {"CHA": 2}}, {"name": "Restricted One", "blurb": "No cursed energy at all, but a superhuman body", "look": "athletic fighter with a scar across the lip", "bonus": {"STR": 2}}]}, "faction": {"label": "Side", "none": "Freelance", "items": [{"name": "Tokyo Sorcery High", "blurb": "Students who exorcise curses across the city"}, {"name": "Kyoto Sorcery High", "blurb": "Strict old-school rivals"}, {"name": "Curse Users' Circle", "blurb": "Sorcerers who want curses to rule"}]}}, "fiveleaf": {"race": {"label": "People", "items": [{"name": "Human", "blurb": "Most of the kingdom, rich or poor", "look": "human", "bonus": {"CHA": 1}}, {"name": "Elf-blooded", "blurb": "An ancient elf spirit stirs inside you", "look": "human with pointed ears and pale glowing markings", "bonus": {"INT": 1, "WIS": 1}}, {"name": "Witch-born", "blurb": "Raised in the forbidden witch forest", "look": "woman or man with wild hair and leaf-patterned clothes", "bonus": {"INT": 2}}, {"name": "Devil-touched", "blurb": "Something from below lent you power", "look": "person with one black-marked arm", "bonus": {"STR": 1, "CON": 1}}]}, "faction": {"label": "Kingdom", "none": "No kingdom (wanderer)", "items": [{"name": "Trefoil Kingdom", "blurb": "Clover-crested home of the Magic Knights"}, {"name": "Adamant Kingdom", "blurb": "Militaristic diamond realm that experiments on mages"}, {"name": "Ironspire Kingdom", "blurb": "Dark realm ruled by a devil-backed trio"}, {"name": "Rosaline Queendom", "blurb": "Rose-crowned realm of spirit guardians"}]}}, "sevenbanners": {"race": {"label": "Born", "items": [{"name": "Highborn", "blurb": "Noble blood, old name, many enemies", "look": "noble in fine embroidered clothes", "bonus": {"CHA": 2}}, {"name": "Northerner", "blurb": "Raised near the great ice wall", "look": "rugged northerner in furs", "bonus": {"CON": 2}}, {"name": "Sellsword", "blurb": "Born common, raised by the sword", "look": "scarred mercenary in mismatched armor", "bonus": {"STR": 2}}, {"name": "Free Isles", "blurb": "Sea-raider stock from the iron isles", "look": "sea-weathered raider with salt-stiff hair", "bonus": {"DEX": 1, "STR": 1}}]}, "faction": {"label": "House", "none": "No house", "items": [{"name": "House Varrow", "blurb": "Northern wolves, honorable to a fault"}, {"name": "House Leocaster", "blurb": "Lions of gold who always pay their debts"}, {"name": "House Thalmor", "blurb": "Stag kings with a claim to the throne"}, {"name": "House Dravine", "blurb": "Exiled dragon-blooded heirs across the sea"}, {"name": "House Merrow", "blurb": "Rich river lords who switch sides"}, {"name": "House Saltgrave", "blurb": "Iron raiders of the western isles"}, {"name": "House Sunmere", "blurb": "Southern desert princes with long memories"}]}}, "ashdragons": {"race": {"label": "Blood", "items": [{"name": "Valcaryn blood", "blurb": "Silver hair, violet eyes, dragon-bonded", "look": "noble with silver-white hair and violet eyes", "bonus": {"CHA": 1, "CON": 1}}, {"name": "Lesser noble", "blurb": "Old name, few dragons", "look": "noble in house colors", "bonus": {"CHA": 2}}, {"name": "Smallfolk", "blurb": "Commoner who may yet claim a wild dragon", "look": "commoner in rough wool", "bonus": {"CON": 2}}]}, "faction": {"label": "Side", "none": "Neutral", "items": [{"name": "The Ember Party", "blurb": "Backs the king's chosen daughter"}, {"name": "The Verdant Party", "blurb": "Backs the queen's son"}]}}};
 const FEATURED = ["starfall","sevenbanners","deadcity","starbreaker","littlepalermo","crimsonleaf","cursedledger","gatehunters"];
 let spin = 0;
 $("#heroDie").addEventListener("click", () => {
@@ -1356,14 +1362,14 @@ $("#joinGo").addEventListener("click", async () => {
 
 /* ---------- create wizard ---------- */
 let WZ = {};
-const STEPS = ["pick","name","look","origin","class"];
+const STEPS = ["pick","name","kin","look","origin","class"];
 const worldClassCache = {};
 function beginCreate(w){ WZ = { world:w, step:"pick", draft:null, classes:null, openCls:null }; go("create"); }
 function newDraft(){ WZ.draft = { id:rid(), world:WZ.world.id, name:"", pronouns:"they/them", look:"", origin:"", cls:null, base:null, story:null, portrait:null, avatar:randomAvatar() }; }
 function wizardFrame(title, sub){
   const box = $("#wizard"); box.textContent = "";
   const top = el("div","wtop"); const back = el("button","back","←"); back.setAttribute("aria-label","Back");
-  back.addEventListener("click", () => { const i = STEPS.indexOf(WZ.step); if (WZ.step === "mode") { if (WZ.fromChars) go("characters"); else { WZ.step = "pick"; renderWizard(); } return; } if (i <= 0) { go("worlds"); return; } WZ.step = STEPS[i - 1]; renderWizard(); });
+  back.addEventListener("click", () => { const i = STEPS.indexOf(WZ.step); if (WZ.step === "mode") { if (WZ.fromChars) go("characters"); else { WZ.step = "pick"; renderWizard(); } return; } if (i <= 0) { go("worlds"); return; } WZ.step = STEPS[i - 1]; if (WZ.step === "kin" && WZ.kinSkip) WZ.step = "name"; renderWizard(); });
   const pr = el("div","prog"); const fill = el("b"); fill.style.width = (WZ.step === "mode" ? 100 : Math.round(100 * (STEPS.indexOf(WZ.step) + 1) / STEPS.length)) + "%"; pr.append(fill);
   top.append(back, pr); box.append(top);
   const wc = el("div","worldchip"); const sw = el("i"); sw.style.setProperty("--art", artFor(WZ.world)); wc.append(sw, el("span",null,WZ.world.name)); const ch = el("a",null,"Change world"); ch.href = "#worlds"; wc.append(ch); box.append(wc);
@@ -1390,10 +1396,40 @@ function renderWizard(){
     }
     return;
   }
+  if (s === "kin") {
+    const box = wizardFrame(`Who is ${nm()}?`, "Pick where they come from in this world.");
+    const st = el("p","status","Gathering the peoples of this world..."); box.append(st);
+    const myWorld = WZ.world.id;
+    kinFor(WZ.world).then(k => {
+      if (WZ.step !== "kin" || WZ.world.id !== myWorld) return;
+      if (!k || (!k.race?.items?.length && !k.faction?.items?.length)) { WZ.kinSkip = true; WZ.step = "look"; renderWizard(); return; }
+      WZ.kinSkip = false; st.remove(); const d = WZ.draft; d.kin = d.kin || {};
+      const n = nextBtn("Continue →", () => { WZ.step = "look"; renderWizard(); });
+      const refresh = () => { n.disabled = !!(k.race?.items?.length && !d.kin.race); };
+      const section = (part, key, noneLabel) => {
+        box.append(el("p","label", part.label + (key === "race" ? " (pick one)" : "")));
+        const g = el("div","kgrid");
+        const opts = [...part.items]; if (noneLabel) opts.push({ name:noneLabel, blurb:"", none:true });
+        for (const o of opts) {
+          const b = el("button","kopt"); const sel = o.none ? (d.kin[key] === null || (key === "faction" && d.kin[key] === undefined)) : d.kin[key]?.name === o.name;
+          b.setAttribute("aria-pressed", String(!!sel));
+          b.append(el("b",null,o.name)); if (o.blurb) b.append(el("span",null,o.blurb));
+          if (o.bonus) b.append(el("small",null,Object.entries(o.bonus).map(([s2, v]) => `${s2} ${v > 0 ? "+" : ""}${v}`).join("  ")));
+          b.addEventListener("click", () => { d.kin[key] = o.none ? null : o; g.querySelectorAll(".kopt").forEach(x => x.setAttribute("aria-pressed", String(x === b))); refresh(); });
+          g.append(b);
+        }
+        box.append(g);
+      };
+      if (k.race?.items?.length) section(k.race, "race");
+      if (k.faction?.items?.length) section(k.faction, "faction", k.faction.none || ("No " + k.faction.label.toLowerCase()));
+      box.append(n); refresh();
+    });
+    return;
+  }
   if (s === "name") {
     const box = wizardFrame("What is your character's name?", "This is how the story will know them.");
     const i = el("input"); i.id = "wzName"; i.maxLength = 40; i.placeholder = "Type a name"; i.value = WZ.draft.name;
-    const n = nextBtn("Continue →", () => { WZ.draft.name = i.value.trim(); WZ.step = "look"; renderWizard(); }, !i.value.trim());
+    const n = nextBtn("Continue →", () => { WZ.draft.name = i.value.trim(); WZ.step = "kin"; renderWizard(); }, !i.value.trim());
     i.addEventListener("input", () => n.disabled = !i.value.trim()); i.addEventListener("keydown", e => { if (e.key === "Enter" && i.value.trim()) n.click(); });
     box.append(i, n); i.focus(); return;
   }
@@ -1463,8 +1499,8 @@ function renderWizard(){
 }
 async function finishChar(btn){
   const dr = WZ.draft; const base = rollStats();
-  const stats = {}; for (const k of STATS) stats[k] = base[k] + (dr.cls.bonus?.[k] || 0);
-  const c = { id:dr.id, world:dr.world, name:dr.name, pronouns:dr.pronouns, look:dr.look, origin:dr.origin, cls:dr.cls, stats, story:null, portrait:dr.portrait, avatar:dr.avatar, hp:Math.max(1, (dr.cls.hitDie || 8) + mod(stats.CON)), updated:Date.now() };
+  const stats = {}; for (const k of STATS) stats[k] = base[k] + (dr.cls.bonus?.[k] || 0) + (dr.kin?.race?.bonus?.[k] || 0);
+  const c = { kin:dr.kin && (dr.kin.race || dr.kin.faction) ? { race:dr.kin.race ? { name:dr.kin.race.name, look:dr.kin.race.look || "", blurb:dr.kin.race.blurb || "" } : null, faction:dr.kin.faction ? { name:dr.kin.faction.name, blurb:dr.kin.faction.blurb || "" } : null } : null, id:dr.id, world:dr.world, name:dr.name, pronouns:dr.pronouns, look:dr.look, origin:dr.origin, cls:dr.cls, stats, story:null, portrait:dr.portrait, avatar:dr.avatar, hp:Math.max(1, (dr.cls.hitDie || 8) + mod(stats.CON)), updated:Date.now() };
   if (PAINT && !c.portrait && !dr.noPaint) { if (btn) btn.textContent = `Painting ${c.name}'s portrait...`; try { c.portrait = await paintPortrait(c, null, 1); c.painted = true; c.paintV = 2; } catch { c.portrait = null; setTimeout(() => { toast("Still painting the portrait; it will appear when it's ready."); paintMissing(); }, 3000); } }
   if (dr.noPaint) c.noPaint = true;
   await saveChar(c); forgeStory(c, WZ.world);
@@ -1479,6 +1515,7 @@ Name: ${c.name} (${c.pronouns})
 Appearance: ${describeAvatar(c.avatar)}. ${c.look || ""}
 Origin: ${c.origin || "(not given, invent one that fits the world)"}
 Class: ${c.cls.name}: ${c.cls.blurb}
+${c.kin ? "Belongs to: " + kinText(c.kin) + (c.kin.faction?.blurb ? " (" + c.kin.faction.blurb + ")" : "") : ""}
 Reply with only JSON: {"backstory": 2 short paragraphs under 150 words, "trait": one sentence, "flaw": one sentence, "bond": one sentence, "hook": one sentence a Game Master can use}`, { cache:false, seat:"forge" });
     if (!r || !r.backstory) return;
     const story = { backstory:String(r.backstory).slice(0,1500), trait:String(r.trait||""), flaw:String(r.flaw||""), bond:String(r.bond||""), hook:String(r.hook||"") };
@@ -1486,6 +1523,23 @@ Reply with only JSON: {"backstory": 2 short paragraphs under 150 words, "trait":
     cur.story = story; c.story = story; await saveChar(cur);
     if (typeof T !== "undefined" && T && T.me && T.me.id === c.id) { T.me.story = story; try { renderSide(); syncMe(); } catch {} }
   } catch {}
+}
+const kinText = k => !k ? "" : [k.race?.name, k.faction?.name].filter(Boolean).join(", ");
+async function kinFor(w){
+  if (KIN[w.id]) return KIN[w.id];
+  const key = "lh.kin." + w.id; const cached = store.get(key, null); if (cached) return cached;
+  await ready; if (!SAMPLE) return null;
+  try {
+    const r = await SAMPLE.json(`You design character options for a tabletop RPG world.
+WORLD: ${w.name}. ${w.premise}
+${w.crime ? "This is a grounded crime world: no fantasy races. Use the crime families or gangs as the factions." : ""}
+Does this world have distinct races, species, clans, bloodlines or kinds of people a player should choose between? And does it have kingdoms, houses, villages, families, gangs or sides a player could belong to?
+Rules: use ORIGINAL names that fit this world (no names from existing franchises). 3-6 options each. If a choice does not fit the world, give an empty list for it. Race options need a short visual "look" (what they look like, for a portrait painter) and a stat bonus totaling +2 using STR DEX CON INT WIS CHA.
+Reply with only JSON: {"race": {"label": "Race" or "Species" or "Clan" etc, "items": [{"name": "...", "blurb": "under 14 words", "look": "under 18 words", "bonus": {"STR": 2}}]}, "faction": {"label": "Kingdom" or "House" or "Village" or "Family" etc, "none": "label for belonging to none, e.g. No kingdom", "items": [{"name": "...", "blurb": "under 14 words"}]}}`, { modelTier:"quick", cache:false, seat:"forge" });
+    const clean = (part, race) => ({ label:String(part?.label || (race ? "Race" : "Faction")).slice(0,24), none:String(part?.none || "").slice(0,40), items:(Array.isArray(part?.items) ? part.items : []).slice(0,7).map(o => ({ name:String(o.name||"").slice(0,40), blurb:String(o.blurb||"").slice(0,110), look:race ? String(o.look||"").slice(0,140) : undefined, bonus:race && o.bonus && typeof o.bonus === "object" ? Object.fromEntries(Object.entries(o.bonus).filter(([k2, v]) => STATS.includes(k2) && Math.abs(+v) <= 2).map(([k2, v]) => [k2, +v])) : undefined })).filter(o => o.name) });
+    const k = { race:clean(r?.race, true), faction:clean(r?.faction, false) };
+    store.set(key, k); return k;
+  } catch { return null; }
 }
 function classCard(c, i){
   const hues = ["#7ee0c2","#c79bff","#7cc7f0"]; const open = WZ.openCls === c.name, sel = WZ.draft.cls?.name === c.name;
@@ -1557,7 +1611,7 @@ const T = { on:false, mode:"solo", code:null, R:null, isHost:true, me:null, camp
 const soloKey = (w, c) => "lh.solo." + w + "." + c;
 let lastJoinErr = "";
 function prepMe(c){ c = JSON.parse(JSON.stringify(c)); c.hpMax = c.hp || 8; c.hpCur = c.hpMax; c.level = 1; c.xp = 0; c.gold = 10; c.inv = (c.cls?.kit || []).map(k => ({ ...k, eq: k.cat === "Weapon" || k.cat === "Armor" })); return c; }
-function brief(c){ return { name:c.name, cls:c.cls?.name, pron:c.pronouns, look:((c.avatar ? describeAvatar(c.avatar) + ". " : "") + (c.look || "")).slice(0,300), origin:(c.origin||"").slice(0,120), hp:`${c.hpCur}/${c.hpMax}`, lvl:c.level, gold:c.gold, inv:(c.inv||[]).slice(0,8).map(i => i.name + (i.eq ? "*" : "")), hook:(c.story?.hook||"").slice(0,160), stats:c.stats, av:c.portrait ? null : (c.avatar || null), abil:(c.cls?.abilities||[]).map(a => a.name), thumb:(c.thumb && c.thumb.length < 9000) ? c.thumb : null, story:(c.story?.backstory||"").slice(0,320), blurb:(c.cls?.blurb||"").slice(0,90) }; }
+function brief(c){ return { name:c.name, cls:c.cls?.name, pron:c.pronouns, look:((c.avatar ? describeAvatar(c.avatar) + ". " : "") + (c.look || "")).slice(0,300), origin:(c.origin||"").slice(0,120), hp:`${c.hpCur}/${c.hpMax}`, lvl:c.level, gold:c.gold, inv:(c.inv||[]).slice(0,8).map(i => i.name + (i.eq ? "*" : "")), hook:(c.story?.hook||"").slice(0,160), stats:c.stats, av:c.portrait ? null : (c.avatar || null), abil:(c.cls?.abilities||[]).map(a => a.name), kin:kinText(c.kin), thumb:(c.thumb && c.thumb.length < 9000) ? c.thumb : null, story:(c.story?.backstory||"").slice(0,320), blurb:(c.cls?.blurb||"").slice(0,90) }; }
 function makeThumb(src){ return new Promise(res => { if (!src) return res(null); const i = new Image(); i.onload = () => { try { const cv = document.createElement("canvas"); cv.width = 72; cv.height = 90; const sh = Math.min(i.height, i.width * 90 / 72); cv.getContext("2d").drawImage(i, 0, 0, i.width, sh, 0, 0, 72, 90); res(cv.toDataURL("image/jpeg", .7)); } catch { res(null); } }; i.onerror = () => res(null); i.src = src; }); }
 function snapState(){ return { combat:T.combat, log:T.log.slice(-80), round:T.round, chron:T.chron, notes:T.notes, done:T.done, offers:T.offers, gmTurns:T.gmTurns, scene:T.scene, me:{ hpCur:T.me.hpCur, hpMax:T.me.hpMax, xp:T.me.xp, level:T.me.level, gold:T.me.gold, inv:T.me.inv } }; }
 function rememberTable(code, host){ const list = store.get("lh.tables", []).filter(t => !(t.code === code && t.host === host)); list.unshift({ code, host, world:T.camp?.id || null, worldName:T.camp?.name || "", charId:T.me?.id, charName:T.me?.name, ts:Date.now() }); store.set("lh.tables", list.slice(0, 6)); }
@@ -1846,6 +1900,7 @@ function showPlayer(c, mine){
   openSheet(c.name || "Player", artFor({ h:[hashStr(c.name || "x") % 360, 230] }), body => {
     const top = el("div","pshead"); top.append(mine ? faceEl(T.me.name, T.me.avatar, T.me.portrait) : c.thumb ? faceEl(c.name, null, c.thumb) : faceEl(c.name, c.av || null));
     const t = el("div"); t.append(el("b",null,`${c.cls || "Adventurer"} · Level ${c.lvl || 1}`), el("div","muted",`HP ${c.hp || "?"} · ${c.gold ?? 0} gold · ${c.pron || "they/them"}`)); top.append(t); body.append(top);
+    if (c.kin) body.append(el("p",null,c.kin));
     if (c.blurb) body.append(el("p","muted",c.blurb));
     if (c.look) body.append(el("p","label","Looks"), el("p",null,c.look));
     if (c.origin) body.append(el("p","label","Where they come from"), el("p",null,c.origin));
@@ -2210,7 +2265,7 @@ async function runGM(opening, isRewrite){
   T.busy = true; T.roundDeadline = 0; setLamp("gm", true); $("#aiErr").textContent = ""; renderWait();
   if (T.R) T.R.presence({ gmBusy:true }).catch(()=>{});
   const recent = T.log.filter(e => !["sys","ooc","chat"].includes(e.kind)).slice(-14).map(e => e.kind === "gm" ? `GM: ${stripTags(e.text)}` : e.kind === "npc" ? `${e.who} (NPC): ${e.text}` : e.kind === "roll" ? `[dice] ${e.text}` : `${e.who}: ${e.text}`).join("\n");
-  const party = partyList().map(c => `- ${c.name} (${c.pron || "they/them"}), level ${c.lvl || 1} ${c.cls}. HP ${c.hp}. Gold ${c.gold ?? "?"}. Looks: ${c.look || "n/a"}. From: ${c.origin || "n/a"}. Abilities: ${(c.abil||[]).join(", ")}. Carrying: ${(c.inv||[]).join(", ") || "nothing"} (* = equipped). ${c.hook ? "Hook: " + c.hook : ""} Stats: ${c.stats ? STATS.map(k => k + " " + c.stats[k]).join(", ") : "n/a"}`).join("\n");
+  const party = partyList().map(c => `- ${c.name} (${c.pron || "they/them"}), level ${c.lvl || 1} ${c.cls}${c.kin ? " (" + c.kin + ")" : ""}. HP ${c.hp}. Gold ${c.gold ?? "?"}. Looks: ${c.look || "n/a"}. From: ${c.origin || "n/a"}. Abilities: ${(c.abil||[]).join(", ")}. Carrying: ${(c.inv||[]).join(", ") || "nothing"} (* = equipped). ${c.hook ? "Hook: " + c.hook : ""} Stats: ${c.stats ? STATS.map(k => k + " " + c.stats[k]).join(", ") : "n/a"}`).join("\n");
   const prompt = `${GM_RULES}
 
 WORLD: ${T.camp.name}${T.camp.crime ? " (GROUNDED CRIME DRAMA: absolutely no magic, superpowers, spirits or supernatural events. Everything must be physically realistic: fists, knives, guns, cars, money, bribes, informants, police and betrayal. Characters' abilities are ordinary human skills.)" : ""}${T.camp.nomagic ? " (GROUNDED SURVIVAL: no magic or superpowers. The only unnatural thing is the outbreak itself. People survive with ordinary skills, weapons, vehicles and supplies; ammo, food and medicine are scarce and matter.)" : ""}${T.camp.anime ? " (play it with anime energy: dramatic reveals, named special moves, rivalries, inner-monologue beats)" : ""}
