@@ -411,6 +411,22 @@ details.fine>div{padding:0 14px 14px;display:flex;flex-direction:column;gap:14px
   .wbar input{max-width:none;margin-left:0}
 }
 /* ---- polish pass ---- */
+.partybar{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;margin-bottom:10px;scrollbar-width:thin}
+.partybar .pm{display:flex;align-items:center;gap:8px;min-width:170px;max-width:240px;flex:1;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:7px 10px;color:var(--ink);cursor:pointer}
+.partybar .pm:hover{border-color:#ffffff40}
+.partybar .pm.me{border-color:#62d48a55}
+.partybar .pi{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.partybar .pi b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.partybar .pi span{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.partybar .phb{height:5px;border-radius:3px;background:#ffffff14;overflow:hidden}
+.partybar .phb i{display:block;height:100%;background:#e0453a}
+.partybar .pi .pt{color:#8fd3ff;font-style:italic}
+.partybar .pi .pa{color:#62d48a}
+.pshead{display:flex;gap:12px;align-items:center}
+.pshead .face{width:64px;height:64px}
+.psstats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;text-align:center}
+.psstats div{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;padding:6px 2px}
+@media (max-width:520px){.psstats{grid-template-columns:repeat(3,minmax(0,1fr))}.partybar .pm{min-width:150px}}
 .audiobar{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:10px}
 .audiobar .chip{font-size:12px;padding:4px 10px}
 .recap{border:1px solid #f2c14e44;background:linear-gradient(180deg,#221b0c,#120f0a);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
@@ -635,6 +651,7 @@ details.fine>div{padding:0 14px 14px;display:flex;flex-direction:column;gap:14px
   </aside>
   <div class="tale">
     <div class="mhud" id="mHud"></div>
+    <div class="partybar" id="partyBar" hidden></div>
     <div class="talehead"><p class="label" id="tblLabel"></p><h2 id="tblTitle"></h2>
       <div class="audiobar"><button class="chip" id="musicBtn" aria-pressed="false">Music off</button><button class="chip" id="sfxBtn" aria-pressed="true">Sounds on</button><button class="chip" id="shareBtn" hidden>Invite link</button></div></div>
     <div class="log" id="log" aria-live="polite"></div>
@@ -1114,7 +1131,8 @@ function faceEl(name, avatar, portrait){ const f = el("div","face");
 function whoFace(name){
   if (T.me && name === T.me.name) return faceEl(name, T.me.avatar, T.me.portrait);
   const peer = (T.peers || []).find(p => p.presence?.char?.name === name);
-  return faceEl(name, peer?.presence?.char?.av || null);
+  const pc = peer?.presence?.char; if (pc?.thumb) return faceEl(name, null, pc.thumb);
+  return faceEl(name, pc?.av || null);
 }
 
 /* ---------- routing ---------- */
@@ -1539,7 +1557,8 @@ const T = { on:false, mode:"solo", code:null, R:null, isHost:true, me:null, camp
 const soloKey = (w, c) => "lh.solo." + w + "." + c;
 let lastJoinErr = "";
 function prepMe(c){ c = JSON.parse(JSON.stringify(c)); c.hpMax = c.hp || 8; c.hpCur = c.hpMax; c.level = 1; c.xp = 0; c.gold = 10; c.inv = (c.cls?.kit || []).map(k => ({ ...k, eq: k.cat === "Weapon" || k.cat === "Armor" })); return c; }
-function brief(c){ return { name:c.name, cls:c.cls?.name, pron:c.pronouns, look:((c.avatar ? describeAvatar(c.avatar) + ". " : "") + (c.look || "")).slice(0,300), origin:(c.origin||"").slice(0,120), hp:`${c.hpCur}/${c.hpMax}`, lvl:c.level, gold:c.gold, inv:(c.inv||[]).slice(0,8).map(i => i.name + (i.eq ? "*" : "")), hook:(c.story?.hook||"").slice(0,160), stats:c.stats, av:c.portrait ? null : (c.avatar || null), abil:(c.cls?.abilities||[]).map(a => a.name) }; }
+function brief(c){ return { name:c.name, cls:c.cls?.name, pron:c.pronouns, look:((c.avatar ? describeAvatar(c.avatar) + ". " : "") + (c.look || "")).slice(0,300), origin:(c.origin||"").slice(0,120), hp:`${c.hpCur}/${c.hpMax}`, lvl:c.level, gold:c.gold, inv:(c.inv||[]).slice(0,8).map(i => i.name + (i.eq ? "*" : "")), hook:(c.story?.hook||"").slice(0,160), stats:c.stats, av:c.portrait ? null : (c.avatar || null), abil:(c.cls?.abilities||[]).map(a => a.name), thumb:(c.thumb && c.thumb.length < 9000) ? c.thumb : null, story:(c.story?.backstory||"").slice(0,320), blurb:(c.cls?.blurb||"").slice(0,90) }; }
+function makeThumb(src){ return new Promise(res => { if (!src) return res(null); const i = new Image(); i.onload = () => { try { const cv = document.createElement("canvas"); cv.width = 72; cv.height = 90; const sh = Math.min(i.height, i.width * 90 / 72); cv.getContext("2d").drawImage(i, 0, 0, i.width, sh, 0, 0, 72, 90); res(cv.toDataURL("image/jpeg", .7)); } catch { res(null); } }; i.onerror = () => res(null); i.src = src; }); }
 function snapState(){ return { combat:T.combat, log:T.log.slice(-80), round:T.round, chron:T.chron, notes:T.notes, done:T.done, offers:T.offers, gmTurns:T.gmTurns, scene:T.scene, me:{ hpCur:T.me.hpCur, hpMax:T.me.hpMax, xp:T.me.xp, level:T.me.level, gold:T.me.gold, inv:T.me.inv } }; }
 function rememberTable(code, host){ const list = store.get("lh.tables", []).filter(t => !(t.code === code && t.host === host)); list.unshift({ code, host, world:T.camp?.id || null, worldName:T.camp?.name || "", charId:T.me?.id, charName:T.me?.name, ts:Date.now() }); store.set("lh.tables", list.slice(0, 6)); }
 let hostSaveT = null;
@@ -1591,6 +1610,7 @@ async function startGame(mode, c, w, code){
 }
 function showTable(){
   T.on = true; go("play");
+  if (T.me && T.me.portrait && !T.me.thumb) makeThumb(T.me.portrait).then(t => { if (t && T.me) { T.me.thumb = t; syncMe(); renderPartyBar(); } });
   $("#tblLabel").textContent = T.mode === "solo" ? "Solo table" : T.isHost ? "Your table" : "Shared table";
   $("#tblTitle").textContent = T.scene || T.camp?.name || "Waiting for the host...";
   const cb = $("#codeBox"); cb.textContent = ""; if (T.code) cb.append(el("span","label","Table code "), el("div","code",T.code));
@@ -1806,7 +1826,38 @@ function renderSide(){
   if (T.scene) $("#tblTitle").textContent = T.scene;
   renderMe(); renderPane(); renderParty(); renderHud();
 }
+function partyPeers(){ return (T.peers || []).filter(p => p.presence?.char); }
+function renderPartyBar(){
+  const bar = $("#partyBar"); if (!bar) return; bar.textContent = "";
+  const ps = partyPeers(); if (T.mode === "solo" || ps.length < 1) { bar.hidden = true; return; }
+  for (const peer of ps) {
+    const c = peer.presence.char; const b = el("button","pm" + (peer.sameTab ? " me" : "")); b.title = "See " + (c.name || "this player");
+    b.append(c.thumb && !peer.sameTab ? faceEl(c.name, null, c.thumb) : peer.sameTab ? faceEl(T.me.name, T.me.avatar, T.me.portrait) : faceEl(c.name, c.av || null));
+    const [cur, max] = String(c.hp || "0/1").split("/").map(Number);
+    const info = el("div","pi"); info.append(el("b",null,(c.name || "Someone") + (peer.sameTab ? " (you)" : "")), el("span",null,`${c.cls || ""} · L${c.lvl || 1}`));
+    const hb = el("div","phb"); const f = el("i"); f.style.width = Math.max(0, Math.min(100, 100 * (cur || 0) / (max || 1))) + "%"; hb.append(f); info.append(hb);
+    const typing = peer.presence?.typing && Date.now() - peer.presence.typing < 6000 && !peer.sameTab; if (typing) info.append(el("span","pt","typing..."));
+    if (T.acted?.has(c.name)) info.append(el("span","pa","acted ✓"));
+    b.append(info); b.addEventListener("click", () => showPlayer(c, peer.sameTab)); bar.append(b);
+  }
+  bar.hidden = false;
+}
+function showPlayer(c, mine){
+  openSheet(c.name || "Player", artFor({ h:[hashStr(c.name || "x") % 360, 230] }), body => {
+    const top = el("div","pshead"); top.append(mine ? faceEl(T.me.name, T.me.avatar, T.me.portrait) : c.thumb ? faceEl(c.name, null, c.thumb) : faceEl(c.name, c.av || null));
+    const t = el("div"); t.append(el("b",null,`${c.cls || "Adventurer"} · Level ${c.lvl || 1}`), el("div","muted",`HP ${c.hp || "?"} · ${c.gold ?? 0} gold · ${c.pron || "they/them"}`)); top.append(t); body.append(top);
+    if (c.blurb) body.append(el("p","muted",c.blurb));
+    if (c.look) body.append(el("p","label","Looks"), el("p",null,c.look));
+    if (c.origin) body.append(el("p","label","Where they come from"), el("p",null,c.origin));
+    if (c.story) body.append(el("p","label","Backstory"), el("p",null,c.story + (c.story.length >= 320 ? "..." : "")));
+    if (c.stats) { const g = el("div","psstats"); for (const k of STATS) { const v = c.stats[k] ?? 10; const d = el("div"); d.append(el("span","label",k), el("b",null,String(v)), el("span","muted",fmtMod(mod(v)))); g.append(d); } body.append(el("p","label","Abilities"), g); }
+    if (c.abil?.length) body.append(el("p","label","Special moves"), el("p",null,c.abil.join(" · ")));
+    if (c.inv?.length) body.append(el("p","label","Carrying"), el("p",null,c.inv.map(x => x.replace(/\*$/, " (equipped)")).join(", ")));
+    const close = el("button","btn","Close"); close.addEventListener("click", () => closeSheet()); body.append(close);
+  });
+}
 function renderParty(){
+  renderPartyBar();
   const p = $("#party"); p.textContent = "";
   if (T.mode === "solo") { const r = el("div","you"); r.append(el("span",null,T.me.name), el("span",null,`HP ${T.me.hpCur}/${T.me.hpMax}`)); p.append(r); $("#claimHost").hidden = true; return; }
   let hostHere = false;
@@ -2132,7 +2183,7 @@ function renderWait(){
   if (T.isHost) { const go = el("button","btn small","Continue now"); go.addEventListener("click", () => { clearTimeout(T.timer); T.roundDeadline = 0; runGM(false); }); bar.append(go); }
   bar.hidden = false;
 }
-setInterval(() => { if (T.on && T.mode !== "solo" && T.acted?.size) renderWait(); renderTyping(); }, 1000);
+setInterval(() => { if (T.on && T.mode !== "solo" && T.acted?.size) renderWait(); renderTyping(); if (T.on && T.mode !== "solo") renderPartyBar(); }, 1500);
 function partyList(){ if (T.mode === "solo") return [brief(T.me)]; const out = []; for (const p of T.peers) if (p.presence?.char) out.push(p.presence.char); return out.length ? out : [brief(T.me)]; }
 
 /* ---------- council ---------- */
