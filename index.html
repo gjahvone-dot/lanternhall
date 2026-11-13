@@ -1652,13 +1652,14 @@ Reply with only a JSON array of ${n} objects: {"name": 1-3 words, "blurb": under
   return arr.slice(0, n).map(cleanClass);
 }
 async function loadWorldClasses(w, kin){
-  const ck = classKey(w, kin); const key = "lh.wc6." + ck;
+  const ck = classKey(w, kin); const key = "lh.wc7." + ck;
   if (worldClassCache[ck]) return worldClassCache[ck];
   const cached = store.get(key, null); if (cached?.length) return (worldClassCache[ck] = cached);
   await ready;
   if (SAMPLE) { for (let a = 0; a < 2; a++) { try { const halves = w.crime ? ["muscle/enforcer, a shooter, a getaway driver", "a talker/schemer, a safecracker or thief, a doctor/accountant/fixer"] : ["a frontline melee fighter, a heavy or armored soldier, a ranged specialist or pilot", "a leader/social or command role, a sneaky scout/spy/assassin, a power-user (magic, special energy, curse technique or high tech, whatever this world has) or healer"];
         const parts = await Promise.allSettled(halves.map(s => genClasses(w, 3, null, kin, s)));
-        const list = parts.flatMap(x => x.status === "fulfilled" ? x.value : []); if (list.length >= 4) { const seen = new Set(); const uniq = list.filter(c => !seen.has(c.name.toLowerCase()) && seen.add(c.name.toLowerCase())); store.set(key, uniq); return (worldClassCache[ck] = uniq); } } catch {} } }
+        const list = parts.flatMap(x => x.status === "fulfilled" ? x.value : []); if (list.length >= 4) { const seen = new Set(); const uniq = list.filter(c => !seen.has(c.name.toLowerCase()) && seen.add(c.name.toLowerCase()));
+          if (uniq.length < 6) { try { const more = await genClasses(w, 6 - uniq.length, null, kin, `roles not already taken (already used: ${uniq.map(c => c.name).join(", ")}), e.g. a power-user, healer/support, engineer or tech, scout or spy`); for (const c of more) if (!seen.has(c.name.toLowerCase())) { seen.add(c.name.toLowerCase()); uniq.push(c); } } catch {} } store.set(key, uniq); return (worldClassCache[ck] = uniq); } } catch {} } }
   return (w.crime ? CRIME_CLASSES : w.nomagic ? SURVIVOR_CLASSES : FALLBACK_CLASSES).map(cleanClass);
 }
 function rollStats(){ const o = {}; for (const k of STATS) { const r = [d(6),d(6),d(6),d(6)].sort((a,b)=>a-b); o[k] = r[1]+r[2]+r[3]; } return o; }
