@@ -450,6 +450,8 @@ details.fine>div{padding:0 14px 14px;display:flex;flex-direction:column;gap:14px
 .combat .arr{color:var(--muted)}
 .combat .foes{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px}
 .combat .foe{border:1px solid #ffffff1a;border-radius:10px;padding:9px 10px;background:#0006;display:flex;flex-direction:column;gap:6px;position:relative}
+.combat .foe .frow{display:flex;gap:9px;align-items:center}.combat .foe .finfo{flex:1;min-width:0}
+.combat .foe .fface{width:46px;height:58px;flex:none;border-radius:8px;overflow:hidden;border:1px solid #e0453a66;background:#0008}.combat .foe .fface img,.combat .foe .fface svg{width:100%;height:100%;object-fit:cover;display:block}.combat .foe.down .fface{filter:grayscale(1) brightness(.6)}
 .combat .foe .ft{display:flex;justify-content:space-between;gap:6px;align-items:baseline}
 .combat .foe b{font-size:15px}
 .combat .fhp{font:600 12px var(--mono);color:#ffb4aa}
@@ -898,7 +900,7 @@ const ART_STYLES = {
 function artStyle(){ return "photo"; } /* every portrait is realistic */
 function portraitURL(c){
   const w = worldById(c.world) || {};
-  const who = c.pronouns === "he/him" ? "man" : c.pronouns === "she/her" ? "woman" : "person";
+  const who = c.who || (c.pronouns === "he/him" ? "man" : c.pronouns === "she/her" ? "woman" : "person");
   const raw = (c.look || "").trim();
   const st = ART_STYLES.photo;
   const look = ((c.kin?.race?.look && !/^human/i.test(c.kin.race.look) ? c.kin.race.look + ". " : "") + ((c.lookPrompt || raw).replace(/[.\s]+$/, "") || (c.avatar ? describeAvatar(c.avatar) : "an adventurer")));
@@ -1121,13 +1123,19 @@ function queueNpcFaces(){
   for (const n of (T.chron?.npcs || []).slice(0, 8)) { const k = npcKey(n.name); if (!npcPics[k] && !npcQueue.some(q => q.k === k)) npcQueue.push({ k, name:n.name, note:n.note || "" }); }
   pumpNpc();
 }
+async function queueFoeFace(f){
+  if (!PAINT || !T.camp) return; const base = foeBase(f.name); const k = npcKey(base);
+  if (npcPics[k] || npcQueue.some(q => q.k === k)) return;
+  npcQueue.unshift({ k, name:base, note:f.note || "", foe:true }); pumpNpc();
+}
+const foeBase = n => String(n).replace(/\s*#?\d+$/, "").trim() || String(n);
 async function pumpNpc(){
   if (npcBusy || !npcQueue.length || paintBusy) { if (npcQueue.length && !npcBusy) setTimeout(pumpNpc, 15000); return; }
   const wait = 47000 - (Date.now() - npcLast); if (wait > 0) { setTimeout(pumpNpc, wait); return; }
   npcBusy = true; const job = npcQueue.shift();
   try {
     const raw = `${job.name}${job.note ? ", " + job.note : ""}`;
-    const pic = await paintPortrait({ id:"npc:" + job.k, world:T.camp?.id, pronouns:"", look:raw, lookPrompt:raw, lookFrom:raw, cls:null }, null, 1);
+    const pic = await paintPortrait({ id:"npc:" + job.k, world:T.camp?.id, pronouns:"", who: job.foe ? "menacing enemy, a creature or fighter as described, glaring at the viewer" : undefined, look:raw, lookPrompt:raw, lookFrom:raw, cls:null }, null, 1);
     const small = await new Promise(res => { const i = new Image(); i.onload = () => { const cv = document.createElement("canvas"); cv.width = 160; cv.height = 200; cv.getContext("2d").drawImage(i, 0, 0, 160, 200); res(cv.toDataURL("image/jpeg", .8)); }; i.onerror = () => res(pic); i.src = pic; });
     npcPics[job.k] = small; const keys = Object.keys(npcPics); if (keys.length > 60) delete npcPics[keys[0]];
     try { localStorage.setItem("lh.npcpics", JSON.stringify(npcPics)); } catch {}
@@ -2097,7 +2105,9 @@ function renderCombat(){
   const g = el("div","foes");
   for (const f of c.foes) {
     const n = el("div","foe" + (f.down ? " down" : "")); n.dataset.n = f.name;
-    const top = el("div","ft"); top.append(el("b",null,f.name), el("span","fhp", f.down ? "Defeated" : `${f.hp}/${f.max}`)); n.append(top);
+    const top = el("div","ft"); top.append(el("b",null,f.name), el("span","fhp", f.down ? "Defeated" : `${f.hp}/${f.max}`));
+    const fr = el("div","frow"); const face = faceEl(foeBase(f.name)); face.classList.add("fface"); const info = el("div","finfo"); info.append(top); fr.append(face, info); n.append(fr);
+    if (!f.down) queueFoeFace(f);
     const bar = el("div","fbar"); const fill = el("i"); fill.style.width = Math.round(100 * f.hp / f.max) + "%"; bar.append(fill); n.append(bar);
     if (f.note) n.append(el("div","fnote",f.note));
     if (!f.down) { const a = el("button","btn small","Attack"); a.addEventListener("click", () => { $("#actIn").value = `I attack ${f.name}.`; $("#actIn").focus(); }); n.append(a); }
