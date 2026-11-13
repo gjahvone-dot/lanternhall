@@ -629,7 +629,7 @@ details.fine>div{padding:0 14px 14px;display:flex;flex-direction:column;gap:14px
        <label class="lamp" id="narrRow" hidden style="cursor:pointer"><input type="checkbox" id="autoNarr" style="width:auto"> Read the whole story aloud</label>
        <label class="field" id="voicePickRow" hidden><span>Narrator voice</span><select id="voicePick"></select></label>
      </div>
-     <div class="box"><span class="label">Party</span><div class="party" id="party"></div><button class="btn small" id="claimHost" hidden>Run the Game Master</button></div>
+     <div class="box"><span class="label">Party</span><div class="party" id="party"></div><button class="btn small" id="claimHost" hidden>Become the host</button></div>
      <button class="btn small" id="leaveTbl">Leave table</button>
    </div>
   </aside>
@@ -1433,7 +1433,7 @@ function renderWizard(){
     const c = WZ.char; const box = wizardFrame(`Ready, ${c.name}?`, "Play alone, or open a table and share the code with friends.");
     const m = el("div","modes");
     const solo = el("div","mode"); solo.append(el("h3",null,"Play solo"), el("p",null,"Just you and the council. Your progress is saved."), nextBtn(store.get(soloKey(WZ.world.id, c.id), null) ? "Continue your story" : "Begin", () => startGame("solo", c, WZ.world)));
-    const host = el("div","mode"); host.append(el("h3",null,"Open a table"), el("p",null,"Friends join with a five-letter code. You run the Game Master for everyone."), nextBtn("Open table", () => startGame("host", c, WZ.world)));
+    const host = el("div","mode"); host.append(el("h3",null,"Open a table"), el("p",null,"Friends join with a five-letter code. The AI is the Game Master; you play a character like everyone else. Just keep your tab open."), nextBtn("Open table", () => startGame("host", c, WZ.world)));
     const join = el("div","mode"); const ji = el("input"); ji.id = "wzJoin"; ji.maxLength = 5; ji.placeholder = "Table code"; ji.style.textTransform = "uppercase";
     const jb = el("button","btn","Join"); const js = el("p","status");
     jb.addEventListener("click", async () => { const code = ji.value.trim().toUpperCase(); if (!/^[A-Z0-9]{5}$/.test(code)) { js.textContent = "Table codes are five letters or numbers."; return; } js.textContent = "Joining..."; if (!await startGame("join", c, null, code)) js.textContent = lastJoinErr; });
@@ -1806,7 +1806,7 @@ function renderParty(){
   const p = $("#party"); p.textContent = "";
   if (T.mode === "solo") { const r = el("div","you"); r.append(el("span",null,T.me.name), el("span",null,`HP ${T.me.hpCur}/${T.me.hpMax}`)); p.append(r); $("#claimHost").hidden = true; return; }
   let hostHere = false;
-  for (const peer of T.peers) { const c = peer.presence?.char; if (!c) continue; if (peer.presence.host) hostHere = true; const r = el("div", peer.sameTab ? "you" : null); r.append(el("span",null,(c.name || "Someone") + (peer.presence.host ? " (GM)" : "") + (peer.sameTab ? " · you" : "")), el("span",null,`L${c.lvl || 1} · HP ${c.hp ?? "?"}`)); p.append(r); }
+  for (const peer of T.peers) { const c = peer.presence?.char; if (!c) continue; if (peer.presence.host) hostHere = true; const r = el("div", peer.sameTab ? "you" : null); r.append(el("span",null,(c.name || "Someone") + (peer.presence.host ? " (host)" : "") + (peer.sameTab ? " · you" : "")), el("span",null,`L${c.lvl || 1} · HP ${c.hp ?? "?"}`)); p.append(r); }
   $("#claimHost").hidden = hostHere || T.isHost;
   if (!T.isHost) setLamp("gm", T.peers.some(x => x.presence?.gmBusy && !x.sameTab));
 }
@@ -2065,7 +2065,7 @@ async function openRoom(code, host){
   let firstPeers; const gotPeers = new Promise(r => firstPeers = r);
   R.onPeers(ch => {
     const hostNow = ch.peers.some(p => p.presence?.host && !p.sameTab);
-    if (!T.isHost && T.hostSeen && !hostNow && T.on) { T.synced = false; addEntry({ kind:"sys", text:"The host disconnected. Stay here: when they reopen the table, the story continues for everyone. Or tap Run the Game Master to take over." }); }
+    if (!T.isHost && T.hostSeen && !hostNow && T.on) { T.synced = false; addEntry({ kind:"sys", text:"The host disconnected. Stay here: when they reopen the table, the story continues for everyone. Or tap Become the host to keep the story going from your tab." }); }
     if (!T.isHost && hostNow && T.hostSeen === false) addEntry({ kind:"sys", text:"The host is back." });
     if (!T.isHost) T.hostSeen = hostNow ? true : (T.hostSeen ? false : T.hostSeen);
     T.peers = ch.peers.slice(); firstPeers(); renderParty(); if (T.isHost && ch.joined.some(p => !p.isMe)) sendSync(); });
@@ -2081,7 +2081,7 @@ function sendSync(reopen){
   const tail = T.log.filter(e => ["gm","act","npc"].includes(e.kind)).slice(-6).map(e => ({ kind:e.kind, who:e.who, text:String(e.text).slice(0,360) }));
   T.R.emit("sync", { combat:T.combat, reopen:!!reopen, camp:{ id:T.camp.id, name:T.camp.name, premise:T.camp.premise.slice(0,450), anime:T.camp.anime, crime:!!T.camp.crime, nomagic:!!T.camp.nomagic }, round:T.round, scene:T.scene, chron:{ summary:T.chron.summary.slice(0,400), quests:T.chron.quests.slice(0,4), npcs:T.chron.npcs.slice(0,5).map(n => ({ name:n.name, attitude:n.attitude })), fate:T.chron.fate }, log:tail }).catch(()=>{});
 }
-$("#claimHost").addEventListener("click", async () => { T.isHost = true; $("#claimHost").hidden = true; if (T.R) await T.R.presence({ host:true }).catch(()=>{}); if (!T.camp) T.camp = { id:"x", name:$("#tblTitle").textContent, premise:"" }; addEntry({ kind:"sys", text:"You run the Game Master now." }); });
+$("#claimHost").addEventListener("click", async () => { T.isHost = true; $("#claimHost").hidden = true; if (T.R) await T.R.presence({ host:true }).catch(()=>{}); if (!T.camp) T.camp = { id:"x", name:$("#tblTitle").textContent, premise:"" }; addEntry({ kind:"sys", text:"Your tab runs the AI Game Master now. Keep it open." }); });
 $("#leaveTbl").addEventListener("click", () => { resetT(); go("characters"); updateMusic(); });
 $("#musicBtn").addEventListener("click", () => setMusic(!AU.music));
 $("#shareBtn").addEventListener("click", async () => { const link = location.origin + location.pathname + "#join-" + T.code; try { await navigator.clipboard.writeText(link); toast("Invite link copied. Send it to your friends."); } catch { toast("Your invite link: " + link); } });
