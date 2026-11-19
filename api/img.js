@@ -25,6 +25,7 @@ function findImage(o, depth = 0) {
   for (const v of Array.isArray(o) ? o : Object.values(o)) { const r = findImage(v, depth + 1); if (r) return r; }
   return null;
 }
+const trail = [];
 async function gemini(prompt, w, h) {
   const key = env("GEMINI_API_KEY"); if (!key || env("GEMINI_IMAGES", "on") === "off") return null;
   const text = `${prompt}\n\nMake one finished, high-quality image. No text, captions, letters, logos or watermarks anywhere in the image.`;
@@ -36,7 +37,8 @@ async function gemini(prompt, w, h) {
     () => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${env("GEMINI_IMAGE_MODEL_LEGACY", "gemini-2.5-flash-image")}:generateContent`, { method: "POST", signal: withTimeout(22000), headers: H, body: JSON.stringify({ contents: [{ role: "user", parts: [{ text }] }], generationConfig: { responseModalities: ["TEXT", "IMAGE"], imageConfig: { aspectRatio: ar } } }) }),
   ];
   for (const go of tries) {
-    const r = await go().catch(() => null);
+    const r = await go().catch(e => { trail.push("g:" + (e && e.name || "err")); return null; });
+    if (r) trail.push("g:" + r.status);
     if (!r || !r.ok) { if (r && r.status === 429) return null; continue; }
     const j = await r.json().catch(() => null);
     const img = findImage(j);
@@ -47,7 +49,7 @@ async function gemini(prompt, w, h) {
 async function pollinations(prompt, w, h, seed) {
   const tok = env("POLLINATIONS_TOKEN");
   const u = "https://image.pollinations.ai/prompt/" + encodeURIComponent(prompt) + `?width=${w}&height=${h}&seed=${seed}&nologo=true&model=${env("POLLINATIONS_MODEL", "flux")}&enhance=false`;
-  const r = await fetch(u, { signal: withTimeout(22000), headers: tok ? { Authorization: "Bearer " + tok } : {} }).catch(() => null);
+  const r = await fetch(u, { signal: withTimeout(14000), headers: tok ? { Authorization: "Bearer " + tok } : {} }).catch(e => { trail.push("p:" + (e && e.name || "err")); return null; }); if (r) trail.push("p:" + r.status);
   if (!r || !r.ok || !(r.headers.get("content-type") || "").startsWith("image/")) return null;
   return { bytes: new Uint8Array(await r.arrayBuffer()), type: r.headers.get("content-type"), via: tok ? "pollinations-token" : "pollinations" };
 }
@@ -62,11 +64,15 @@ export default async function handler(req) {
   if (p.length < 10) return new Response("Bad request", { status: 400, headers: cors });
   const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "anon";
   if (limited(ip)) return new Response("Slow down", { status: 429, headers: { ...cors, "retry-after": "60", "cache-control": "no-store" } });
-  let out = null;
+  let out = null; trail.length = 0;
   const pref = env("IMAGE_PROVIDER", "gemini");
   if (pref !== "pollinations") out = await gemini(p, w, h);
   if (!out) out = await pollinations(p, w, h, seed);
   if (!out && pref === "pollinations") out = await gemini(p, w, h);
-  if (!out) return new Response("Painter busy", { status: 503, headers: { ...cors, "retry-after": "30", "cache-control": "no-store" } });
-  return new Response(out.bytes, { headers: { ...cors, "content-type": out.type, "x-painter": out.via, "cache-control": "public, max-age=31536000, s-maxage=31536000, immutable" } });
+  if (!out) {
+    // The server could not paint (provider refused this server). Send the player's own browser to the free painter instead.
+    const direct = "https://image.pollinations.ai/prompt/" + encodeURIComponent(p) + `?width=${w}&height=${h}&seed=${seed}&nologo=true&model=flux`;
+    return new Response(null, { status: 302, headers: { ...cors, location: direct, "x-painter": "redirect", "x-painter-trail": trail.join(",").slice(0, 200), "cache-control": "public, max-age=600, s-maxage=600" } });
+  }
+  return new Response(out.bytes, { headers: { ...cors, "content-type": out.type, "x-painter": out.via, "x-painter-trail": trail.join(",").slice(0, 200), "cache-control": "public, max-age=31536000, s-maxage=31536000, immutable" } });
 }
