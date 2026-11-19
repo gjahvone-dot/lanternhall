@@ -68,19 +68,45 @@ document.addEventListener("DOMContentLoaded", () => { const s = document.createE
   sample.limits = async () => ({ maxPromptBytes: 262144 });
 
   // ---------- tts (browser voices) ----------
-  const VOICE_IDX = { buttery: 0, airy: 1, glassy: 2, rounded: 3 }, PITCH = { buttery: 1, airy: 1.2, glassy: 1.08, rounded: 0.82 };
-  const pickVoice = name => { const all = speechSynthesis.getVoices(); if (name === "narrator") { const want = ls.get("lh.voice"); const v = want && all.find(x => x.voiceURI === want); if (v) return v; } const vs = all.filter(v => /^en/i.test(v.lang)); return vs.length ? vs[(VOICE_IDX[name] || 0) % vs.length] : null; };
+  // natural-sounding voices first; each character gets its own consistent voice
+  const FEM = /female|zira|aria|jenny|samantha|karen|moira|tessa|fiona|libby|sonia|natasha|emma|ava|michelle|susan|hazel|catherine|serena|allison|joanna|salli|kendra|kimberly|ivy|amy|olivia|ana|clara|elsa|nova|shimmer|victoria|kate/i;
+  const MAL = /\bmale\b|david|guy|ryan|daniel|alex|fred|thomas|mark|christopher|eric|brian|andrew|george|james|arthur|oliver|rishi|aaron|tom|liam|william|davis|tony|roger|steffan|connor|mitchell|matthew|joey|justin/i;
+  const score = v => (/natural|neural/i.test(v.name) ? 60 : 0) + (/online/i.test(v.name) ? 25 : 0) + (/google/i.test(v.name) ? 20 : 0) + (/premium|enhanced|siri/i.test(v.name) ? 30 : 0) + (/^en[-_](us|gb)/i.test(v.lang) ? 6 : 0) - (/espeak|compact|novelty|whisper|bells|bahh|zarvox|trinoids|bad news|good news|jester|organ|bubbles|cellos|wobble|boing|deranged|hysterical|albert|fred|junior|ralph|kathy|princess|superstar|grandma|grandpa|eddy|flo|reed|rocko|sandy|shelley/i.test(v.name) ? 80 : 0) - (v.localService === false && !/google|online|natural/i.test(v.name) ? 5 : 0);
+  let ranked = [];
+  const refresh = () => { ranked = speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang)).sort((a, b) => score(b) - score(a)); };
+  if ("speechSynthesis" in window) { refresh(); speechSynthesis.addEventListener?.("voiceschanged", refresh); }
+  const h = s => { let x = 7; for (const c of String(s)) x = (x * 31 + c.charCodeAt(0)) >>> 0; return x; };
+  const good = () => { const top = ranked.filter(v => score(v) >= 20); return top.length >= 2 ? top : ranked.slice(0, 8); };
+  const narrator = () => { const want = ls.get("lh.voice"); const v = want && ranked.find(x => x.voiceURI === want); if (v) return v; const g = good(); return g.find(x => MAL.test(x.name)) || g[0] || null; };
+  const castFor = (name, gender) => {
+    const g = good(), n = narrator(); let pool = g.filter(v => v !== n);
+    if (gender === "f") pool = pool.filter(v => FEM.test(v.name)).concat(pool.filter(v => !MAL.test(v.name) && !FEM.test(v.name)));
+    if (gender === "m") pool = pool.filter(v => MAL.test(v.name)).concat(pool.filter(v => !MAL.test(v.name) && !FEM.test(v.name)));
+    if (!pool.length) pool = g.length ? g : ranked;
+    const k = h(name); const v = pool[k % Math.min(pool.length, 6)] || n;
+    const pitchBase = gender === "f" ? 1.08 : gender === "m" ? 0.9 : 1;
+    return { v, pitch: Math.max(0.6, Math.min(1.4, pitchBase + ((k >> 3) % 9 - 4) * 0.04 + (v === n ? (gender === "f" ? 0.2 : -0.18) : 0))), rate: 0.94 + ((k >> 7) % 5) * 0.03 };
+  };
+  const LEGACY = { buttery: { p: 1 }, airy: { p: 1.15 }, glassy: { p: 1.05 }, rounded: { p: 0.85 } };
+  const voiceOf = vn => {
+    if (!vn || vn === "narrator") return { v: narrator(), pitch: 0.96, rate: 0.95 };
+    if (String(vn).startsWith("npc:")) { const [nm, gd] = String(vn).slice(4).split("|"); return castFor(nm, gd); }
+    const L = LEGACY[vn]; return { v: ranked[(Object.keys(LEGACY).indexOf(vn) + 1) % Math.max(1, ranked.length)] || narrator(), pitch: L ? L.p : 1, rate: 0.97 };
+  };
+  // split into sentences so the voice breathes and long text never gets cut off
+  const chunks = s => String(s || "").replace(/\s+/g, " ").match(/[^.!?…]+[.!?…]+["'”’)]*\s*|[^.!?…]+$/g)?.map(x => x.trim()).filter(Boolean) || [];
   const tts = ("speechSynthesis" in window) ? {
     speak(textOrLines, opts = {}) {
       const lines = Array.isArray(textOrLines) ? textOrLines : [{ text: textOrLines, voice: opts.voice }];
-      speechSynthesis.cancel();
+      speechSynthesis.cancel(); if (!ranked.length) refresh();
+      const q = []; for (const l of lines) { const vv = voiceOf(l.voice || opts.voice); for (const c of chunks(l.text).slice(0, 60)) q.push({ c, vv, gap: false }); if (q.length) q[q.length - 1].gap = true; }
       return new Promise((res, rej) => {
         let i = 0;
         const next = () => {
-          if (i >= lines.length) return res();
-          const l = lines[i++], u = new SpeechSynthesisUtterance(String(l.text || "").slice(0, 2000)), vn = l.voice || opts.voice;
-          const v = pickVoice(vn); if (v) u.voice = v; u.pitch = PITCH[vn] || 1; u.rate = opts.rate || 1;
-          u.onend = next; u.onerror = ev => (ev.error === "interrupted" || ev.error === "canceled") ? rej({ code: "cancelled" }) : next();
+          if (i >= q.length) return res();
+          const { c, vv, gap } = q[i++]; const u = new SpeechSynthesisUtterance(c.slice(0, 400));
+          if (vv.v) { u.voice = vv.v; u.lang = vv.v.lang; } u.pitch = vv.pitch; u.rate = (opts.rate || 1) * vv.rate; u.volume = opts.vol == null ? 1 : Math.max(0, Math.min(1, +opts.vol));
+          u.onend = () => gap ? setTimeout(next, 280) : next(); u.onerror = ev => (ev.error === "interrupted" || ev.error === "canceled") ? rej({ code: "cancelled" }) : next();
           speechSynthesis.speak(u);
         };
         next();
@@ -96,7 +122,7 @@ document.addEventListener("DOMContentLoaded", () => { const s = document.createE
   function client() {
     if (sb) return sb;
     if (!cfg.supabaseUrl || !cfg.supabaseAnonKey || !window.supabase) return null;
-    sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, { auth: { persistSession: false }, realtime: { params: { eventsPerSecond: 10 } } });
+    sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, { auth: { persistSession: false }, realtime: { params: { eventsPerSecond: 40 } } });
     return sb;
   }
   const TOPICS = ["act", "roll", "log", "sync"];
@@ -116,20 +142,35 @@ document.addEventListener("DOMContentLoaded", () => { const s = document.createE
       const change = { peers, joined: peers.filter(p => !prev.has(p.peer)), left: snap.filter(p => !keys.has(p.peer)), updated: [] };
       prev = keys; snap = peers; peerFns.forEach(fn => { try { fn(change); } catch (e) { console.error(e); } });
     });
+    const connFns = []; let up = false, first = true, left = false;
+    const setUp = v => { if (up === v) return; up = v; connFns.forEach(fn => { try { fn(v); } catch (e) { console.error(e); } }); };
     await new Promise((res, rej) => {
-      const to = setTimeout(() => rej({ code: "upstream_error" }), 10000);
-      ch.subscribe(status => { if (status === "SUBSCRIBED") { clearTimeout(to); res(); } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") { clearTimeout(to); rej({ code: "upstream_error" }); } });
+      const to = setTimeout(() => rej({ code: "upstream_error" }), 12000);
+      ch.subscribe(status => {
+        if (left) return;
+        if (status === "SUBSCRIBED") {
+          if (first) { first = false; clearTimeout(to); up = true; res(); return; }
+          if (Object.keys(mine).length) ch.track(mine).catch(() => {});
+          setUp(true);
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          if (first) { clearTimeout(to); rej({ code: "upstream_error" }); return; }
+          setUp(false);
+        }
+      });
     });
+    const onVis = () => { if (document.visibilityState === "visible" && !left) { if (Object.keys(mine).length) ch.track(mine).catch(() => {}); connFns.forEach(fn => { try { fn(true, "wake"); } catch {} }); } };
+    document.addEventListener("visibilitychange", onVis);
+    const send = async (topic, data) => { for (let i = 0; i < 5; i++) { const r = await ch.send({ type: "broadcast", event: topic, payload: { data, peer: myPeer } }).catch(() => "error"); if (r === "ok") return; await new Promise(z => setTimeout(z, 250 * (i + 1))); } };
     return {
       name,
-      emit: (topic, data) => ch.send({ type: "broadcast", event: topic, payload: { data, peer: myPeer } }).then(() => {}),
+      emit: (topic, data) => send(topic, data),
       on(topic, fn) { (listeners[topic] = listeners[topic] || []).push(fn); return () => { listeners[topic] = listeners[topic].filter(x => x !== fn); }; },
       presence(patch) { for (const [k, v] of Object.entries(patch || {})) { if (v === null) delete mine[k]; else mine[k] = v; } return ch.track(mine).then(() => {}); },
       peers: () => snap,
       onPeers(fn) { peerFns.push(fn); return () => { const i = peerFns.indexOf(fn); if (i >= 0) peerFns.splice(i, 1); }; },
-      connected: () => true,
-      onConnection(fn) { setTimeout(() => fn(true), 0); return () => {}; },
-      leave: () => c.removeChannel(ch).then(() => {}),
+      connected: () => up,
+      onConnection(fn) { connFns.push(fn); return () => { const i = connFns.indexOf(fn); if (i >= 0) connFns.splice(i, 1); }; },
+      leave: () => { left = true; document.removeEventListener("visibilitychange", onVis); return c.removeChannel(ch).then(() => {}); },
     };
   }
   const room = { join };
